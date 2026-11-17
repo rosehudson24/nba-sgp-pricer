@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import requests
 from scipy.stats import norm
 
 def load_nba_data(seasons=(2024, 2025, 2026)):
@@ -28,6 +29,52 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
         "turnovers": "TOV"
     })
 
+def fetch_tonights_nba_games(api_key: str) -> list:
+    """Fetches upcoming NBA games from The Odds API (costs 0 quota credits)."""
+    url = "https://api.the-odds-api.com/v4/sports/basketball_nba/events"
+    res = requests.get(url, params={"apiKey": api_key}, timeout=10)
+    res.raise_for_status()
+    return res.json()
+
+def fetch_game_player_props(api_key: str, event_id: str, bookmaker: str = "draftkings") -> dict:
+    """Fetches live Over/Under player prop lines & odds for one NBA game."""
+    market_map = {
+        "player_points": "PTS",
+        "player_rebounds": "REB",
+        "player_assists": "AST",
+        "player_threes": "FG3M",
+        "player_steals": "STL",
+        "player_blocks": "BLK"
+    }
+    url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{event_id}/odds"
+    params = {
+        "apiKey": api_key,
+        "regions": "us",
+        "markets": ",".join(market_map.keys()),
+        "oddsFormat": "american",
+        "bookmakers": bookmaker
+    }
+    res = requests.get(url, params=params, timeout=15)
+    res.raise_for_status()
+    data = res.json()
+
+    props = {}
+    for book in data.get("bookmakers", []):
+        for market in book.get("markets", []):
+            stat_code = market_map.get(market["key"])
+            if not stat_code:
+                continue
+            for outcome in market.get("outcomes", []):
+                player = outcome.get("description")
+                side = outcome.get("name")
+                line = outcome.get("point")
+                price = outcome.get("price")
+                if not player or side not in ("Over", "Under"):
+                    continue
+                props.setdefault(player, {}).setdefault(stat_code, {"line": line})
+                props[player][stat_code][side] = int(price)
+    return props
+
 def american_to_prob(odds: int) -> float:
     return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
 
@@ -39,7 +86,6 @@ def prob_to_american(p: float) -> int:
     return round(-100 * p / (1 - p)) if p >= 0.5 else round(100 * (1 - p) / p)
 
 def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
-    """Calculates exact 2-way no-vig probability if opposing odds are given, else estimates 4.5% hold."""
     p_sel = american_to_prob(odds_selected)
     if odds_opposing != 0:
         p_opp = american_to_prob(odds_opposing)
@@ -89,9 +135,7 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
     }
 
 def scan_matchup_correlations(df: pd.DataFrame, team_a: str, team_b: str, min_games: int = 20):
-    """Finds top positive and negative player-stat correlations across two teams."""
     sub = df[df["TEAM_NAME"].isin([team_a, team_b])].copy()
-    # Keep active rotation players (at least min_games played)
     counts = sub["PLAYER_NAME"].value_counts()
     active_players = counts[counts >= min_games].index
     sub = sub[sub["PLAYER_NAME"].isin(active_players)]
@@ -101,13 +145,11 @@ def scan_matchup_correlations(df: pd.DataFrame, team_a: str, team_b: str, min_ga
     pivoted.columns = [f"{player} ({stat})" for stat, player in pivoted.columns]
 
     corr = pivoted.corr(min_periods=min_games)
-    # Keep upper triangle only to avoid duplicates and self-correlations
     mask = np.triu(np.ones(corr.shape), k=1).astype(bool)
     pairs = corr.where(mask).unstack().dropna().reset_index()
     pairs.columns = ["Leg B", "Leg A", "Correlation"]
     pairs = pairs[["Leg A", "Leg B", "Correlation"]]
 
-    # Exclude same-player stat pairs (e.g., Jokic PTS + Jokic FG3M)
     pairs = pairs[pairs["Leg A"].str.split(" \\(").str[0] != pairs["Leg B"].str.split(" \\(").str[0]]
     pairs["Correlation"] = pairs["Correlation"].round(3)
 
