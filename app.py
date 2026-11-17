@@ -1,6 +1,5 @@
 import re
 import unicodedata
-from urllib.parse import quote_plus
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import numpy as np
@@ -425,7 +424,6 @@ def load_nba_data(seasons=(2025, 2026, 2027)):
 
 @st.cache_data(ttl=21600)
 def build_player_media_lookup(df: pd.DataFrame) -> dict:
-    """Maps normalized player name -> {headshot, team_logo, team_name} from latest game logs."""
     latest = df.drop_duplicates(subset=["NORM_NAME"], keep="last")
     media = {}
     for _, r in latest.iterrows():
@@ -1001,7 +999,7 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Reusable Zero-Scrollbar HTML Table Renderer (With Headshots + Team Logos)
+# Reusable Zero-Scrollbar HTML Table Renderer
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str):
     if source_df.empty:
         st.markdown(f"""
@@ -1105,6 +1103,12 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
     """
     st.markdown(html, unsafe_allow_html=True)
 
+# Initialize same-tab navigation state
+if "active_game_page" not in st.session_state:
+    st.session_state["active_game_page"] = None
+if "selected_book" not in st.session_state:
+    st.session_state["selected_book"] = "draftkings"
+
 # Load multi-season database, media lookup & compute advanced team metrics
 df = load_nba_data()
 media_lookup = build_player_media_lookup(df)
@@ -1133,10 +1137,6 @@ st.markdown(f"""
 if not saved_key:
     saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
 
-selected_book = st.query_params.get("book", "draftkings")
-if selected_book not in ["draftkings", "fanduel", "betmgm", "caesars"]:
-    selected_book = "draftkings"
-
 all_game_labels = []
 game_lines = {}
 slate_props = {}
@@ -1146,7 +1146,7 @@ slate_date_label = ""
 if saved_key:
     try:
         all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_pregame_slate(
-            saved_key, bookmaker=selected_book, max_games=10
+            saved_key, bookmaker=st.session_state["selected_book"], max_games=10
         )
         if not slate_props:
             fetch_pregame_slate.clear()
@@ -1156,18 +1156,20 @@ if saved_key:
 edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup) if slate_props else pd.DataFrame()
 
 # =========================================================
-# DEDICATED NEW-WINDOW GAME VIEW (Triggered via ?game=Away+@+Home)
+# SAME-TAB GAME DETAIL PAGE (When a game is clicked)
 # =========================================================
-target_game = st.query_params.get("game", "")
+target_game = st.session_state.get("active_game_page")
 if target_game and "@" in target_game:
+    nav_c1, _ = st.columns([1.4, 4.6])
+    with nav_c1:
+        if st.button("← Back to Full Slate", icon=":material/arrow_back:", width="stretch"):
+            st.session_state["active_game_page"] = None
+            st.rerun()
+
     parts = [t.strip() for t in target_game.split("@")]
     away_sel, home_sel = parts[0], parts[1]
     g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
     detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, n_sims=15000)
-
-    top_nav1, _ = st.columns([1.4, 4.6])
-    with top_nav1:
-        st.link_button("← Back to Full Slate", url="?", width="stretch")
 
     fav_short = home_sel.split()[-1] if detail_sim["proj_spread"] < 0 else away_sel.split()[-1]
     spread_num = abs(detail_sim["proj_spread"])
@@ -1233,11 +1235,11 @@ with ctrl_c1:
     bookmaker = st.selectbox(
         "Sportsbook",
         ["draftkings", "fanduel", "betmgm", "caesars"],
-        index=["draftkings", "fanduel", "betmgm", "caesars"].index(selected_book),
+        index=["draftkings", "fanduel", "betmgm", "caesars"].index(st.session_state["selected_book"]),
         format_func=lambda x: {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "caesars": "Caesars"}[x]
     )
-    if bookmaker != selected_book:
-        st.query_params["book"] = bookmaker
+    if bookmaker != st.session_state["selected_book"]:
+        st.session_state["selected_book"] = bookmaker
         st.rerun()
 with ctrl_c2:
     min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
@@ -1275,7 +1277,7 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (Full-Width Zero-Scrollbar HTML Boards)
+# TAB 1: TOP STRAIGHT BETS
 # =========================================================
 with tab_straight:
     if not slate_props:
@@ -1290,11 +1292,11 @@ with tab_straight:
         render_clean_prop_board(filtered[filtered["Stat"] == "PRA"].head(10), "Points + Rebounds + Assists (PRA) — Top 10", "No PRA pre-game lines matching your filter.")
 
 # =========================================================
-# TAB 2: SLATE & NEW-WINDOW BOX SCORE LAUNCHER
+# TAB 2: SLATE & SAME-TAB GAME PAGE LAUNCHER
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores")
-    st.caption("Click any matchup below to open a new window with full team projected box scores, player prop lines, projections, and matchup ratings.")
+    st.caption("Click any matchup below to open its full projected player box scores, active prop lines, projections, and matchup ratings.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
@@ -1313,7 +1315,6 @@ with tab_slate:
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
         spread_num = abs(sim_res["proj_spread"])
         tip_badge = g_line.get("tip_str", "")
-        game_url = f"?game={quote_plus(g_lbl)}&book={bookmaker}"
         away_logo = get_team_logo(away_t)
         home_logo = get_team_logo(home_t)
 
@@ -1334,12 +1335,14 @@ with tab_slate:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            st.link_button(
-                f"Open Box Score & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
-                url=game_url,
-                icon=":material/open_in_new:",
+            if st.button(
+                f"View Box Score & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
+                key=f"open_game_{idx}",
+                icon=":material/arrow_forward:",
                 width="stretch"
-            )
+            ):
+                st.session_state["active_game_page"] = g_lbl
+                st.rerun()
 
 # =========================================================
 # TAB 3: AUTO-PARLAY BUILDER
