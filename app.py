@@ -1,6 +1,7 @@
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import requests
@@ -28,9 +29,9 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     .block-container {
-        padding-top: 1.4rem;
-        padding-bottom: 3rem;
-        max-width: 1220px;
+        padding-top: 1.2rem;
+        padding-bottom: 2.5rem;
+        max-width: 1380px;
     }
     #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
     section[data-testid="stSidebar"] { display: none; }
@@ -40,30 +41,30 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1.1rem 1.4rem;
+        padding: 0.95rem 1.35rem;
         background: #111622;
         border: 1px solid #1E2638;
         border-radius: 12px;
-        margin-bottom: 1rem;
+        margin-bottom: 0.85rem;
         flex-wrap: wrap;
         gap: 0.75rem;
     }
-    .brand-left { display: flex; align-items: center; gap: 0.85rem; }
+    .brand-left { display: flex; align-items: center; gap: 0.8rem; }
     .brand-logo {
-        width: 38px;
-        height: 38px;
+        width: 36px;
+        height: 36px;
         border-radius: 9px;
         background: linear-gradient(135deg, #10B981 0%, #059669 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 800;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         color: #06100C;
         letter-spacing: -0.5px;
     }
     .brand-name {
-        font-size: 1.45rem;
+        font-size: 1.38rem;
         font-weight: 800;
         color: #F8FAFC;
         letter-spacing: -0.4px;
@@ -71,9 +72,9 @@ st.markdown("""
         line-height: 1.15;
     }
     .brand-sub {
-        font-size: 0.83rem;
+        font-size: 0.8rem;
         color: #8B97AD;
-        margin: 0.15rem 0 0 0;
+        margin: 0.1rem 0 0 0;
     }
     .status-badge {
         display: inline-flex;
@@ -82,9 +83,9 @@ st.markdown("""
         background: rgba(16, 185, 129, 0.1);
         border: 1px solid rgba(16, 185, 129, 0.28);
         color: #34D399;
-        font-size: 0.76rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        padding: 5px 12px;
+        padding: 4px 11px;
         border-radius: 999px;
     }
     .status-dot {
@@ -98,34 +99,34 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.65rem 0.95rem;
+        padding: 0.55rem 0.85rem;
         background: #111622;
         border: 1px solid #1E2638;
         border-left: 3px solid #10B981;
         border-radius: 8px;
-        margin: 1.35rem 0 0.65rem 0;
+        margin: 0.75rem 0 0.45rem 0;
     }
     .prop-section-title span.title-text {
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 700;
         color: #F1F5F9;
         letter-spacing: -0.2px;
     }
     .prop-section-title span.count-pill {
-        font-size: 0.76rem;
+        font-size: 0.72rem;
         font-weight: 600;
         color: #94A3B8;
         background: #1A2234;
-        padding: 2px 9px;
+        padding: 2px 8px;
         border-radius: 999px;
     }
 
     .pick-card {
         background: #111622;
         border: 1px solid #1E2638;
-        border-radius: 11px;
-        padding: 1rem 1.15rem;
-        margin-bottom: 0.65rem;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.5rem;
         transition: border-color 0.18s ease;
     }
     .pick-card:hover { border-color: #2E3A54; }
@@ -133,10 +134,10 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.25rem;
     }
     .pick-player {
-        font-size: 1.02rem;
+        font-size: 0.98rem;
         font-weight: 700;
         color: #F8FAFC;
     }
@@ -144,27 +145,27 @@ st.markdown("""
         background: rgba(16, 185, 129, 0.14);
         color: #34D399;
         border: 1px solid rgba(16, 185, 129, 0.32);
-        font-size: 0.76rem;
+        font-size: 0.74rem;
         font-weight: 700;
-        padding: 2px 9px;
+        padding: 2px 8px;
         border-radius: 999px;
     }
     .pick-line {
-        font-size: 0.96rem;
+        font-size: 0.92rem;
         font-weight: 600;
         color: #10B981;
-        margin-bottom: 0.3rem;
+        margin-bottom: 0.25rem;
     }
     .pick-details {
-        font-size: 0.82rem;
+        font-size: 0.79rem;
         color: #8B97AD;
-        line-height: 1.45;
+        line-height: 1.4;
     }
     .pick-matchup {
-        font-size: 0.76rem;
+        font-size: 0.74rem;
         color: #64748B;
-        margin-top: 0.45rem;
-        padding-top: 0.4rem;
+        margin-top: 0.35rem;
+        padding-top: 0.35rem;
         border-top: 1px solid #1A2234;
     }
 
@@ -207,14 +208,14 @@ st.markdown("""
     }
 
     .site-footer {
-        margin-top: 3rem;
-        padding-top: 1.25rem;
+        margin-top: 2.5rem;
+        padding-top: 1.1rem;
         border-top: 1px solid #1E2638;
         display: flex;
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 0.5rem;
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         color: #64748B;
     }
 </style>
@@ -227,6 +228,10 @@ def normalize_name(name: str) -> str:
     name = name.lower().replace(".", "").replace("'", "").replace("-", " ")
     name = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", name)
     return re.sub(r"\s+", " ", name).strip()
+
+def short_matchup(game_label: str) -> str:
+    parts = [t.strip().split()[-1] for t in game_label.split("@")]
+    return f"{parts[0]} @ {parts[1]}" if len(parts) == 2 else game_label
 
 @st.cache_data(ttl=21600)
 def load_nba_data(seasons=(2025, 2026, 2027)):
@@ -309,21 +314,24 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
 
 def format_matchup_rating(mult: float) -> str:
     score = round(mult * 100, 1)
-    diff = round((mult - 1.0) * 100, 1)
     if score >= 102.0:
-        return f"{score} · Smash ({diff:+.1f}%)"
+        return f"{score} · Smash"
     elif score >= 100.5:
-        return f"{score} · Favorable ({diff:+.1f}%)"
+        return f"{score} · Favorable"
     elif score <= 98.0:
-        return f"{score} · Tough ({diff:+.1f}%)"
+        return f"{score} · Tough"
     elif score <= 99.5:
-        return f"{score} · Below Avg ({diff:+.1f}%)"
-    return f"{score} · Neutral ({diff:+.1f}%)"
+        return f"{score} · Below Avg"
+    return f"{score} · Neutral"
 
 @st.cache_data(ttl=900)
-def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games: int = 8):
-    """Fetches all available NBA games & player props, prioritizing pre-game matchups first."""
+def fetch_slate_by_day(api_key: str, bookmaker: str = "draftkings", day_offset: int = 0, max_games: int = 10):
+    """Fetches strictly the NBA slate matching day_offset (0 = Today ET, 1 = Tomorrow ET)."""
+    et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
+    now_et = now_utc.astimezone(et_tz)
+    target_date_et = (now_et + timedelta(days=day_offset)).date()
+
     odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
     game_res = requests.get(
         odds_url,
@@ -339,26 +347,23 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
     game_res.raise_for_status()
     raw_games = game_res.json()
 
-    pregame_list = []
-    live_list = []
+    day_games = []
     for g in raw_games:
         c_str = g.get("commence_time", "")
-        is_pre = True
-        if c_str:
-            tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
-            is_pre = tip_utc > now_utc
-        g["_is_pregame"] = is_pre
-        if is_pre:
-            pregame_list.append(g)
-        else:
-            live_list.append(g)
+        if not c_str:
+            continue
+        tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
+        tip_et = tip_utc.astimezone(et_tz)
+        if tip_et.date() == target_date_et:
+            g["_is_pregame"] = tip_utc > now_utc
+            g["_tip_str"] = tip_et.strftime("%I:%M %p ET").lstrip("0")
+            day_games.append(g)
 
-    # Sort pre-game matchups first so they always get scanned first
-    ordered_games = pregame_list + live_list
+    day_games.sort(key=lambda x: (0 if x["_is_pregame"] else 1, x.get("commence_time", "")))
 
     game_lines = {}
     all_game_labels = []
-    for g in ordered_games:
+    for g in day_games:
         lbl = f"{g['away_team']} @ {g['home_team']}"
         all_game_labels.append(lbl)
         spread_home = 0.0
@@ -378,6 +383,7 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
             "total": total_line,
             "id": g["id"],
             "is_pregame": g["_is_pregame"],
+            "tip_str": g["_tip_str"],
         }
 
     market_map = {
@@ -389,7 +395,7 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
     }
     slate_props = {}
 
-    for g in ordered_games[:max_games]:
+    for g in day_games[:max_games]:
         lbl = f"{g['away_team']} @ {g['home_team']}"
         url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{g['id']}/odds"
         params = {
@@ -426,8 +432,9 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
         if props:
             slate_props[lbl] = props
 
-    fetched_at = datetime.now().strftime("%I:%M %p")
-    return all_game_labels, game_lines, slate_props, fetched_at
+    fetched_at = now_et.strftime("%b %d · %I:%M %p ET")
+    slate_date_label = target_date_et.strftime("%A, %b %d")
+    return all_game_labels, game_lines, slate_props, fetched_at, slate_date_label
 
 def american_to_prob(odds: int) -> float:
     return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
@@ -559,7 +566,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         "Stat": stat,
                         "Status": status_tag,
                         "Projection": round(float(proj), 1),
-                        "Matchup": game_label,
+                        "Matchup": short_matchup(game_label),
+                        "FullMatchup": game_label,
                         "Matchup Rating": format_matchup_rating(rating_mult),
                         "Odds": int(odds),
                         "Win Prob": round(float(mod_p * 100), 1),
@@ -569,7 +577,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
     if not rows:
         return pd.DataFrame()
-    # Sort Pre-Game lines first, then highest EV%
     df_out = pd.DataFrame(rows)
     df_out["_pre_sort"] = np.where(df_out["Status"] == "Pre-Game", 0, 1)
     df_out = df_out.sort_values(by=["_pre_sort", "EV"], ascending=[True, False]).drop(columns=["_pre_sort"]).reset_index(drop=True)
@@ -816,68 +823,64 @@ st.markdown(f"""
             <p class="brand-sub">{BRAND_SUBTITLE}</p>
         </div>
     </div>
-    <span class="status-badge"><span class="status-dot"></span> LIVE MODEL & ODDS FEED</span>
+    <span class="status-badge"><span class="status-dot"></span> TODAY'S NBA SLATE</span>
 </div>
 """, unsafe_allow_html=True)
 
 # Inline Control Strip
-ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 1.2, 1.5, 1.5, 0.7], vertical_alignment="bottom")
+ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 1.1, 1.4, 1.5, 0.7], vertical_alignment="bottom")
 with ctrl_c1:
+    slate_day = st.selectbox("Slate Day", ["Today's Slate", "Tomorrow's Slate"])
+with ctrl_c2:
     bookmaker = st.selectbox(
         "Sportsbook",
         ["draftkings", "fanduel", "betmgm", "caesars"],
         format_func=lambda x: {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "caesars": "Caesars"}[x]
     )
-with ctrl_c2:
-    slate_mode = st.selectbox("Board Filter", ["All Lines (Pre-Game First)", "Pre-Game Only"])
 with ctrl_c3:
     min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
 with ctrl_c4:
     search_player = st.text_input("Search", placeholder="Player or team...")
 with ctrl_c5:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
-        fetch_full_slate_data.clear()
+        fetch_slate_by_day.clear()
         st.rerun()
 
 if not saved_key:
     saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
 
+day_offset = 0 if slate_day == "Today's Slate" else 1
 all_game_labels = []
 game_lines = {}
 slate_props = {}
 fetched_at = "Just now"
+slate_date_label = ""
 
 if saved_key:
     try:
-        all_game_labels, game_lines, slate_props, fetched_at = fetch_full_slate_data(saved_key, bookmaker=bookmaker, max_games=8)
-        # Never keep an empty result cached if API returned 0 props
+        all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_slate_by_day(
+            saved_key, bookmaker=bookmaker, day_offset=day_offset, max_games=10
+        )
         if not slate_props:
-            fetch_full_slate_data.clear()
+            fetch_slate_by_day.clear()
     except Exception as e:
         st.error(f"Live odds feed unavailable: {e}")
 
 edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics) if slate_props else pd.DataFrame()
-filtered = edges_df.copy()
-
-if not filtered.empty:
-    if slate_mode == "Pre-Game Only":
-        pre_only = filtered[filtered["Status"] == "Pre-Game"]
-        if not pre_only.empty:
-            filtered = pre_only
-    filtered = filtered[filtered["EV"] >= min_ev]
+filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
 
 if not filtered.empty and search_player.strip():
     q = search_player.strip()
     filtered = filtered[
         filtered["Player"].str.contains(q, case=False, na=False) |
-        filtered["Matchup"].str.contains(q, case=False, na=False)
+        filtered["FullMatchup"].str.contains(q, case=False, na=False)
     ]
 
 # Top KPI Summary Strip
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("Active Slate", f"{len(slate_props)} Games")
-kpi2.metric("Lines Displayed", f"{len(filtered)} Props")
-top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Awaiting Lines"
+kpi1.metric(slate_date_label or "Active Slate", f"{len(all_game_labels)} Games")
+kpi2.metric("Lines Evaluated", f"{len(filtered)} Props")
+top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Slate Finalized"
 kpi3.metric("Top Model Edge", top_pick_str)
 kpi4.metric("Last Board Sync", fetched_at)
 
@@ -892,76 +895,67 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (Sectioned by Prop Category)
+# TAB 1: TOP STRAIGHT BETS (Zero-Scroll Top 10 Per Prop Grid)
 # =========================================================
+def render_prop_board(stat_code: str, section_title: str, top_n: int = 10):
+    stat_df = filtered[filtered["Stat"] == stat_code].head(top_n)
+    st.markdown(f"""
+    <div class="prop-section-title">
+        <span class="title-text">{section_title}</span>
+        <span class="count-pill">Top {len(stat_df)}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    if stat_df.empty:
+        st.caption(f"No {stat_code} props posted on this slate right now.")
+        return
+
+    display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV"]
+    col_cfg = {
+        "Player": st.column_config.TextColumn("Player", width="medium"),
+        "Line": st.column_config.TextColumn("Line", width="small"),
+        "Projection": st.column_config.NumberColumn("Proj", format="%.1f", width="small"),
+        "Matchup": st.column_config.TextColumn("Game", width="small"),
+        "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
+        "Odds": st.column_config.NumberColumn("Odds", format="%+d", width="small"),
+        "Win Prob": st.column_config.ProgressColumn("Win %", min_value=0, max_value=100, format="%.0f%%", width="small"),
+        "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%", width="small"),
+    }
+    # Exact pixel height so all rows render without any internal scrollbars
+    exact_height = (len(stat_df) + 1) * 35 + 3
+    st.dataframe(
+        stat_df[display_cols],
+        width="stretch",
+        hide_index=True,
+        height=exact_height,
+        column_config=col_cfg
+    )
+
 with tab_straight:
     if not slate_props:
-        st.info("Sportsbooks have not posted player props for the upcoming NBA slate yet. Click Refresh once lines open.")
+        st.info(f"All games on {slate_date_label or 'today’s slate'} have concluded or closed prop markets. Tomorrow's slate will automatically take over after midnight ET (or switch to **Tomorrow's Slate** in the top-left selector to preview early lines).")
     elif filtered.empty:
         st.warning(f"No lines match your current filter ({min_ev:+.1f}% EV). Lower the Minimum EV slider above to view all posted props.")
     else:
-        st.markdown("##### Featured Highest-EV Plays")
-        top_cols = st.columns(3)
-        for idx, (_, row) in enumerate(filtered.head(3).iterrows()):
-            with top_cols[idx]:
-                st.markdown(f"""
-                <div class="pick-card">
-                    <div class="pick-top">
-                        <span class="pick-player">{row['Player']}</span>
-                        <span class="ev-pill">{row['EV']:+.1f}% EV</span>
-                    </div>
-                    <div class="pick-line">{row['Line']} ({row['Odds']:+d})</div>
-                    <div class="pick-details">
-                        Projection: <b>{row['Projection']}</b> · Win Prob: <b>{row['Win Prob']}%</b><br>
-                        Matchup Rating: <b>{row['Matchup Rating']}</b>
-                    </div>
-                    <div class="pick-matchup">{row['Matchup']} · {row['Status']}</div>
-                </div>
-                """, unsafe_allow_html=True)
+        # 2x2 Grid + Full-Width PRA Row so all Top-10 Prop Boards are visible together without scrolling
+        row1_c1, row1_c2 = st.columns(2, gap="medium")
+        with row1_c1:
+            render_prop_board("PTS", "Points Props (PTS)", top_n=10)
+        with row1_c2:
+            render_prop_board("REB", "Rebounds Props (REB)", top_n=10)
 
-        prop_sections = [
-            ("PTS", "Points Props (PTS)"),
-            ("REB", "Rebounds Props (REB)"),
-            ("AST", "Assists Props (AST)"),
-            ("FG3M", "3-Pointers Made Props (3PM)"),
-            ("PRA", "Points + Rebounds + Assists (PRA)"),
-        ]
-        display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Status", "Odds", "Win Prob", "EV"]
-        col_cfg = {
-            "Player": st.column_config.TextColumn("Player", width="medium"),
-            "Line": st.column_config.TextColumn("Line", width="medium"),
-            "Projection": st.column_config.NumberColumn("Projection", format="%.1f"),
-            "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
-            "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
-            "Status": st.column_config.TextColumn("Status", width="small"),
-            "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
-            "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
-            "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
-        }
+        row2_c1, row2_c2 = st.columns(2, gap="medium")
+        with row2_c1:
+            render_prop_board("AST", "Assists Props (AST)", top_n=10)
+        with row2_c2:
+            render_prop_board("FG3M", "3-Pointers Made Props (3PM)", top_n=10)
 
-        for stat_code, section_title in prop_sections:
-            stat_df = filtered[filtered["Stat"] == stat_code]
-            st.markdown(f"""
-            <div class="prop-section-title">
-                <span class="title-text">{section_title}</span>
-                <span class="count-pill">{len(stat_df)} Plays</span>
-            </div>
-            """, unsafe_allow_html=True)
-            if stat_df.empty:
-                st.caption(f"No {stat_code} props posted on the board right now.")
-            else:
-                st.dataframe(
-                    stat_df[display_cols],
-                    width="stretch",
-                    hide_index=True,
-                    column_config=col_cfg
-                )
+        render_prop_board("PRA", "Points + Rebounds + Assists (PRA)", top_n=10)
 
 # =========================================================
 # TAB 2: TONIGHT'S SLATE & CLICK-IN PROJECTED BOX SCORES
 # =========================================================
 with tab_slate:
-    st.markdown("##### Projected NBA Scores & Matchup Box Scores")
+    st.markdown(f"##### {slate_date_label or 'Slate'} Projected NBA Scores & Box Scores")
     st.caption("Simulated 15,000 times using per-minute rate models, opponent defensive ratings, Vegas pace environments, and rest/location splits.")
 
     slate_list = all_game_labels if all_game_labels else [
@@ -979,10 +973,11 @@ with tab_slate:
         if len(parts) != 2:
             continue
         away_t, home_t = parts[0], parts[1]
-        g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0})
+        g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
         sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, n_sims=15000)
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
         spread_num = abs(sim_res["proj_spread"])
+        tip_badge = g_line.get("tip_str", "")
 
         with grid_cols[idx % 3]:
             st.markdown(f"""
@@ -996,8 +991,8 @@ with tab_slate:
                     <span class="matchup-pts">{sim_res['home_score']}</span>
                 </div>
                 <div class="matchup-footer">
-                    <span>Proj Line: <b>{fav_short} -{spread_num}</b></span>
-                    <span>Proj Total: <b>{sim_res['proj_total']}</b></span>
+                    <span>{tip_badge} · Line: <b>{fav_short} -{spread_num}</b></span>
+                    <span>Total: <b>{sim_res['proj_total']}</b></span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1039,7 +1034,7 @@ with tab_slate:
 # =========================================================
 with tab_parlays:
     if not slate_props:
-        st.info("Auto-parlays will populate automatically as soon as player props open on the sportsbook feed.")
+        st.info("Auto-parlays will populate automatically when player props are active on the selected slate.")
     else:
         col_multi, col_sgp = st.columns(2, gap="large")
 
@@ -1048,7 +1043,7 @@ with tab_parlays:
             st.caption("Combines the highest independent model edge from each matchup on the slate.")
             num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
             if not edges_df.empty:
-                best_per_game = edges_df.drop_duplicates(subset=["Matchup"]).head(num_parlay_legs)
+                best_per_game = edges_df.drop_duplicates(subset=["FullMatchup"]).head(num_parlay_legs)
                 if len(best_per_game) >= 2:
                     comb_dec = float(np.prod([american_to_decimal(o) for o in best_per_game["Odds"]]))
                     comb_mod_p = float(np.prod(best_per_game["Win Prob"] / 100.0))
