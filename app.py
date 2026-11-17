@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from urllib.parse import quote_plus
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import numpy as np
@@ -95,7 +96,55 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* Clean Full-Width HTML Prop Tables (Zero Horizontal or Vertical Scrollbars) */
+    /* Player Avatar + Team Logo Badge */
+    .player-flex {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        overflow: hidden;
+    }
+    .headshot-wrap {
+        position: relative;
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+    }
+    .headshot-img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #1E2638;
+        border: 1px solid #2D3952;
+    }
+    .team-mini-logo {
+        position: absolute;
+        bottom: -2px;
+        right: -3px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: #0F1420;
+        padding: 1px;
+        object-fit: contain;
+        border: 1px solid #263147;
+    }
+    .team-inline-logo {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    .player-name-txt {
+        font-weight: 600;
+        color: #F8FAFC;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Full-Width Zero-Scrollbar Prop & Box Score Tables */
     .board-card {
         background: #111622;
         border: 1px solid #1E2638;
@@ -117,6 +166,9 @@ st.markdown("""
         font-weight: 700;
         color: #F8FAFC;
         letter-spacing: -0.2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
     .board-count {
         font-size: 0.73rem;
@@ -144,21 +196,17 @@ st.markdown("""
         background: #111622;
     }
     table.prop-table td {
-        padding: 0.52rem 0.75rem;
+        padding: 0.46rem 0.75rem;
         color: #E2E8F0;
         border-bottom: 1px solid #182032;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        vertical-align: middle;
     }
-    table.prop-table tr:last-child td {
-        border-bottom: none;
-    }
-    table.prop-table tr:hover td {
-        background: #161E30;
-    }
+    table.prop-table tr:last-child td { border-bottom: none; }
+    table.prop-table tr:hover td { background: #161E30; }
     .col-right { text-align: right !important; }
-    .player-cell { font-weight: 600; color: #F8FAFC; }
     .line-cell { font-weight: 600; color: #38BDF8; }
     .proj-cell { font-weight: 700; color: #F8FAFC; }
     .ev-pos {
@@ -193,7 +241,6 @@ st.markdown("""
         align-items: center;
         margin-bottom: 0.25rem;
     }
-    .pick-player { font-size: 0.98rem; font-weight: 700; color: #F8FAFC; }
     .pick-line { font-size: 0.92rem; font-weight: 600; color: #10B981; margin-bottom: 0.25rem; }
     .pick-details { font-size: 0.79rem; color: #8B97AD; line-height: 1.4; }
 
@@ -208,10 +255,16 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.25rem 0;
+        padding: 0.28rem 0;
     }
-    .matchup-team { font-size: 0.98rem; font-weight: 600; color: #F1F5F9; }
-    .matchup-prob { font-size: 0.78rem; color: #64748B; margin-left: 4px; }
+    .matchup-team {
+        font-size: 0.96rem;
+        font-weight: 600;
+        color: #F1F5F9;
+        display: flex;
+        align-items: center;
+    }
+    .matchup-prob { font-size: 0.78rem; color: #64748B; margin-left: 5px; }
     .matchup-pts { font-size: 1.25rem; font-weight: 800; color: #10B981; }
     .matchup-footer {
         display: flex;
@@ -221,6 +274,14 @@ st.markdown("""
         border-top: 1px solid #1A2234;
         font-size: 0.78rem;
         color: #8B97AD;
+    }
+
+    .game-hero {
+        background: linear-gradient(135deg, #111622 0%, #161F33 100%);
+        border: 1px solid #26324B;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
     }
 
     .site-footer {
@@ -236,6 +297,68 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+NBA_TEAM_LOGOS = {
+    "Atlanta Hawks": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png",
+    "Boston Celtics": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
+    "Brooklyn Nets": "https://a.espncdn.com/i/teamlogos/nba/500/bkn.png",
+    "Charlotte Hornets": "https://a.espncdn.com/i/teamlogos/nba/500/cha.png",
+    "Chicago Bulls": "https://a.espncdn.com/i/teamlogos/nba/500/chi.png",
+    "Cleveland Cavaliers": "https://a.espncdn.com/i/teamlogos/nba/500/cle.png",
+    "Dallas Mavericks": "https://a.espncdn.com/i/teamlogos/nba/500/dal.png",
+    "Denver Nuggets": "https://a.espncdn.com/i/teamlogos/nba/500/den.png",
+    "Detroit Pistons": "https://a.espncdn.com/i/teamlogos/nba/500/det.png",
+    "Golden State Warriors": "https://a.espncdn.com/i/teamlogos/nba/500/gs.png",
+    "Houston Rockets": "https://a.espncdn.com/i/teamlogos/nba/500/hou.png",
+    "Indiana Pacers": "https://a.espncdn.com/i/teamlogos/nba/500/ind.png",
+    "LA Clippers": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+    "Los Angeles Clippers": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+    "Los Angeles Lakers": "https://a.espncdn.com/i/teamlogos/nba/500/lal.png",
+    "Memphis Grizzlies": "https://a.espncdn.com/i/teamlogos/nba/500/mem.png",
+    "Miami Heat": "https://a.espncdn.com/i/teamlogos/nba/500/mia.png",
+    "Milwaukee Bucks": "https://a.espncdn.com/i/teamlogos/nba/500/mil.png",
+    "Minnesota Timberwolves": "https://a.espncdn.com/i/teamlogos/nba/500/min.png",
+    "New Orleans Pelicans": "https://a.espncdn.com/i/teamlogos/nba/500/no.png",
+    "New York Knicks": "https://a.espncdn.com/i/teamlogos/nba/500/ny.png",
+    "Oklahoma City Thunder": "https://a.espncdn.com/i/teamlogos/nba/500/okc.png",
+    "Orlando Magic": "https://a.espncdn.com/i/teamlogos/nba/500/orl.png",
+    "Philadelphia 76ers": "https://a.espncdn.com/i/teamlogos/nba/500/phi.png",
+    "Phoenix Suns": "https://a.espncdn.com/i/teamlogos/nba/500/phx.png",
+    "Portland Trail Blazers": "https://a.espncdn.com/i/teamlogos/nba/500/por.png",
+    "Sacramento Kings": "https://a.espncdn.com/i/teamlogos/nba/500/sac.png",
+    "San Antonio Spurs": "https://a.espncdn.com/i/teamlogos/nba/500/sa.png",
+    "Toronto Raptors": "https://a.espncdn.com/i/teamlogos/nba/500/tor.png",
+    "Utah Jazz": "https://a.espncdn.com/i/teamlogos/nba/500/uta.png",
+    "Washington Wizards": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png",
+}
+
+DEFAULT_HEADSHOT = "https://a.espncdn.com/combiner/i?img=/i/headshots/nophoto.png&w=96&h=70"
+
+def get_team_logo(team_name: str) -> str:
+    return NBA_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png")
+
+def build_headshot_url(athlete_id, href: str = "") -> str:
+    if isinstance(href, str) and href.startswith("http"):
+        return href
+    if pd.notna(athlete_id):
+        try:
+            aid = int(float(athlete_id))
+            if aid > 0:
+                return f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{aid}.png&w=96&h=70"
+        except Exception:
+            pass
+    return DEFAULT_HEADSHOT
+
+def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str) -> str:
+    return (
+        f'<div class="player-flex">'
+        f'<div class="headshot-wrap">'
+        f'<img class="headshot-img" src="{headshot_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" />'
+        f'<img class="team-mini-logo" src="{team_logo_url}" />'
+        f'</div>'
+        f'<span class="player-name-txt">{player_name}</span>'
+        f'</div>'
+    )
 
 def normalize_name(name: str) -> str:
     if not isinstance(name, str):
@@ -272,8 +395,11 @@ def load_nba_data(seasons=(2025, 2026, 2027)):
     df = df.drop_duplicates(subset=["game_id", "athlete_display_name"])
     rename_map = {
         "game_id": "GAME_ID",
+        "athlete_id": "ATHLETE_ID",
+        "athlete_headshot_href": "HEADSHOT_HREF",
         "athlete_display_name": "PLAYER_NAME",
         "team_display_name": "TEAM_NAME",
+        "team_logo": "TEAM_LOGO",
         "opponent_team_display_name": "OPP_NAME",
         "home_away": "HOME_AWAY",
         "minutes": "MIN",
@@ -286,9 +412,33 @@ def load_nba_data(seasons=(2025, 2026, 2027)):
         "turnovers": "TOV"
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    if "ATHLETE_ID" not in df.columns:
+        df["ATHLETE_ID"] = np.nan
+    if "HEADSHOT_HREF" not in df.columns:
+        df["HEADSHOT_HREF"] = ""
+    if "TEAM_LOGO" not in df.columns:
+        df["TEAM_LOGO"] = ""
+
     df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
     df["PRA"] = df["PTS"] + df["REB"] + df["AST"]
     return df
+
+@st.cache_data(ttl=21600)
+def build_player_media_lookup(df: pd.DataFrame) -> dict:
+    """Maps normalized player name -> {headshot, team_logo, team_name} from latest game logs."""
+    latest = df.drop_duplicates(subset=["NORM_NAME"], keep="last")
+    media = {}
+    for _, r in latest.iterrows():
+        t_name = str(r.get("TEAM_NAME", ""))
+        raw_tlogo = str(r.get("TEAM_LOGO", ""))
+        t_logo = raw_tlogo if raw_tlogo.startswith("http") else get_team_logo(t_name)
+        h_url = build_headshot_url(r.get("ATHLETE_ID"), str(r.get("HEADSHOT_HREF", "")))
+        media[r["NORM_NAME"]] = {
+            "headshot": h_url,
+            "team_logo": t_logo,
+            "team_name": t_name,
+        }
+    return media
 
 @st.cache_data(ttl=21600)
 def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
@@ -341,12 +491,12 @@ def format_matchup_rating(mult: float) -> tuple[str, str]:
     return f"{score} · Neutral", "rating-neutral"
 
 @st.cache_data(ttl=900)
-def fetch_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: int = 8):
-    """Fetches strictly PRE-GAME lines (never live in-play games) and locks to primary balanced-vig lines."""
+def fetch_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: int = 10):
+    """Fetches strictly TODAY'S PRE-GAME lines until midnight ET (never jumps to tomorrow early)."""
     et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(et_tz)
-    # 5-minute buffer before tip-off ensures live lines never enter the pre-game model
+    today_date_et = now_et.date()
     cutoff_utc = now_utc + timedelta(minutes=5)
 
     odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
@@ -365,29 +515,20 @@ def fetch_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: 
     game_res.raise_for_status()
     raw_games = game_res.json()
 
-    # Keep only games that have NOT started yet
-    upcoming_games = []
+    slate_games = []
     for g in raw_games:
         c_str = g.get("commence_time", "")
         if not c_str:
             continue
         tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
-        if tip_utc > cutoff_utc:
-            tip_et = tip_utc.astimezone(et_tz)
+        tip_et = tip_utc.astimezone(et_tz)
+        if tip_utc > cutoff_utc and tip_et.date() == today_date_et:
             g["_tip_et"] = tip_et
-            g["_tip_str"] = tip_et.strftime("%a %I:%M %p ET")
-            upcoming_games.append(g)
+            g["_tip_str"] = tip_et.strftime("%I:%M %p ET").lstrip("0")
+            slate_games.append(g)
 
-    upcoming_games.sort(key=lambda x: x["_tip_et"])
-
-    # Group to the earliest upcoming slate date (e.g. remaining tonight or next day's slate)
-    if upcoming_games:
-        next_slate_date = upcoming_games[0]["_tip_et"].date()
-        slate_games = [g for g in upcoming_games if g["_tip_et"].date() == next_slate_date]
-        slate_date_label = next_slate_date.strftime("%A, %b %d")
-    else:
-        slate_games = []
-        slate_date_label = now_et.strftime("%A, %b %d")
+    slate_games.sort(key=lambda x: x["_tip_et"])
+    slate_date_label = today_date_et.strftime("%A, %b %d")
 
     game_lines = {}
     all_game_labels = []
@@ -439,7 +580,6 @@ def fetch_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: 
         except Exception:
             continue
 
-        # Collect candidate lines by (player, stat, point) so we pick the true main line (closest to -110)
         candidates = {}
         for book in data.get("bookmakers", []):
             for market in book.get("markets", []):
@@ -463,7 +603,6 @@ def fetch_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: 
         for norm_p, p_obj in candidates.items():
             clean_stats = {}
             for stat_code, lines_dict in p_obj["stats"].items():
-                # Filter to two-way lines and pick the primary market line closest to balanced -110 odds
                 two_way = [
                     (ln, sides) for ln, sides in lines_dict.items()
                     if "Over" in sides and "Under" in sides
@@ -532,7 +671,7 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series:
     w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
-def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict) -> pd.DataFrame:
+def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict) -> pd.DataFrame:
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     def_mults_all = team_metrics["def_mult"]
@@ -561,6 +700,10 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             is_home = (player_team == home_team)
             opp_team = away_team if is_home else home_team
             opp_mults = def_mults_all.get(opp_team, {})
+
+            p_media = media_lookup.get(norm_p, {})
+            headshot_url = p_media.get("headshot", DEFAULT_HEADSHOT)
+            team_logo_url = p_media.get("team_logo", get_team_logo(player_team))
 
             min_vals = p_df["MIN"].dropna().tail(30).values
             proj_min = exp_weighted_mean(min_vals, decay=0.90)
@@ -613,6 +756,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     rows.append({
                         "Player": p_data["display_name"],
                         "NORM_NAME": norm_p,
+                        "Headshot": headshot_url,
+                        "TeamLogo": team_logo_url,
                         "Line": f"{side} {line} {stat}",
                         "Side": side,
                         "Stat": stat,
@@ -632,7 +777,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
     return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
-def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, n_sims: int = 15000):
+def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, n_sims: int = 15000):
     def_mults_all = team_metrics["def_mult"]
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
@@ -652,11 +797,11 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             .agg(["count", "mean"])
             .query("count >= 3")
             .sort_values(by="mean", ascending=False)
-            .head(9)
+            .head(10)
             .index.tolist()
         )
         if not rot_players:
-            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:9]
+            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:10]
 
         sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
         opp_mults = def_mults_all.get(opp, {})
@@ -709,8 +854,12 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             sim_a = sim_gamma_stat(*p_info["stats"]["AST"])
             sim_3 = sim_gamma_stat(*p_info["stats"]["FG3M"])
 
+            norm_p = normalize_name(p_info["player"])
+            p_media = media_lookup.get(norm_p, {})
             box_rows.append({
                 "Player": p_info["player"],
+                "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
+                "TeamLogo": p_media.get("team_logo", get_team_logo(team)),
                 "MIN": round(p_info["min"], 1),
                 "PTS": round(float(np.mean(sim_p)), 1),
                 "REB": round(float(np.mean(sim_r)), 1),
@@ -852,8 +1001,113 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Load multi-season database & compute advanced team metrics
+# Reusable Zero-Scrollbar HTML Table Renderer (With Headshots + Team Logos)
+def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str):
+    if source_df.empty:
+        st.markdown(f"""
+        <div class="board-card">
+            <div class="board-header">
+                <span class="board-title">{section_title}</span>
+                <span class="board-count">0 Plays</span>
+            </div>
+            <div style="padding: 0.9rem 1rem; color: #8B97AD; font-size: 0.84rem;">
+                {empty_msg}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    rows_html = []
+    for _, r in source_df.iterrows():
+        ev_val = r["EV"]
+        ev_html = f'<span class="ev-pos">{ev_val:+.1f}%</span>' if ev_val > 0 else f'<span class="ev-neg">{ev_val:+.1f}%</span>'
+        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"])
+        rows_html.append(f"""
+        <tr>
+            <td style="width:23%;">{p_cell}</td>
+            <td style="width:14%;" class="line-cell">{r['Line']}</td>
+            <td style="width:8%;" class="proj-cell col-right">{r['Projection']:.1f}</td>
+            <td style="width:13%;">{r['Matchup']}</td>
+            <td style="width:16%;" class="{r['RatingClass']}">{r['Matchup Rating']}</td>
+            <td style="width:8%;" class="col-right">{r['Odds']:+d}</td>
+            <td style="width:8%;" class="col-right">{r['Win Prob']:.0f}%</td>
+            <td style="width:10%;" class="col-right">{ev_html}</td>
+        </tr>
+        """)
+
+    table_html = f"""
+    <div class="board-card">
+        <div class="board-header">
+            <span class="board-title">{section_title}</span>
+            <span class="board-count">{len(source_df)} Plays</span>
+        </div>
+        <table class="prop-table">
+            <thead>
+                <tr>
+                    <th style="width:23%;">Player</th>
+                    <th style="width:14%;">Line</th>
+                    <th style="width:8%;" class="col-right">Proj</th>
+                    <th style="width:13%;">Matchup</th>
+                    <th style="width:16%;">Matchup Rating</th>
+                    <th style="width:8%;" class="col-right">Odds</th>
+                    <th style="width:8%;" class="col-right">Win %</th>
+                    <th style="width:10%;" class="col-right">EV %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(rows_html)}
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+
+def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame):
+    t_logo = get_team_logo(team_name)
+    rows_html = []
+    for _, r in box_df.iterrows():
+        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"])
+        rows_html.append(f"""
+        <tr>
+            <td style="width:36%;">{p_cell}</td>
+            <td style="width:10%;" class="col-right">{r['MIN']:.1f}</td>
+            <td style="width:11%;" class="proj-cell col-right">{r['PTS']:.1f}</td>
+            <td style="width:10%;" class="col-right">{r['REB']:.1f}</td>
+            <td style="width:10%;" class="col-right">{r['AST']:.1f}</td>
+            <td style="width:11%;" class="col-right">{r['3PM']:.1f}</td>
+            <td style="width:12%;" class="line-cell col-right">{r['PRA']:.1f}</td>
+        </tr>
+        """)
+
+    html = f"""
+    <div class="board-card">
+        <div class="board-header">
+            <span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span>
+            <span class="board-count">Win Prob: {win_prob:.1f}%</span>
+        </div>
+        <table class="prop-table">
+            <thead>
+                <tr>
+                    <th style="width:36%;">Player</th>
+                    <th style="width:10%;" class="col-right">MIN</th>
+                    <th style="width:11%;" class="col-right">PTS</th>
+                    <th style="width:10%;" class="col-right">REB</th>
+                    <th style="width:10%;" class="col-right">AST</th>
+                    <th style="width:11%;" class="col-right">3PM</th>
+                    <th style="width:12%;" class="col-right">PRA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(rows_html)}
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+# Load multi-season database, media lookup & compute advanced team metrics
 df = load_nba_data()
+media_lookup = build_player_media_lookup(df)
 team_metrics = compute_advanced_team_metrics(df)
 
 saved_key = ""
@@ -872,29 +1126,16 @@ st.markdown(f"""
             <p class="brand-sub">{BRAND_SUBTITLE}</p>
         </div>
     </div>
-    <span class="status-badge"><span class="status-dot"></span> STRICT PRE-GAME LINES ONLY</span>
+    <span class="status-badge"><span class="status-dot"></span> TODAY'S PRE-GAME SLATE</span>
 </div>
 """, unsafe_allow_html=True)
 
-# Inline Control Strip
-ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.1, 1.5, 1.8, 0.7], vertical_alignment="bottom")
-with ctrl_c1:
-    bookmaker = st.selectbox(
-        "Sportsbook",
-        ["draftkings", "fanduel", "betmgm", "caesars"],
-        format_func=lambda x: {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "caesars": "Caesars"}[x]
-    )
-with ctrl_c2:
-    min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
-with ctrl_c3:
-    search_player = st.text_input("Search", placeholder="Filter by player or team...")
-with ctrl_c4:
-    if st.button("Refresh", icon=":material/refresh:", width="stretch"):
-        fetch_pregame_slate.clear()
-        st.rerun()
-
 if not saved_key:
     saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
+
+selected_book = st.query_params.get("book", "draftkings")
+if selected_book not in ["draftkings", "fanduel", "betmgm", "caesars"]:
+    selected_book = "draftkings"
 
 all_game_labels = []
 game_lines = {}
@@ -905,16 +1146,109 @@ slate_date_label = ""
 if saved_key:
     try:
         all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_pregame_slate(
-            saved_key, bookmaker=bookmaker, max_games=8
+            saved_key, bookmaker=selected_book, max_games=10
         )
         if not slate_props:
             fetch_pregame_slate.clear()
     except Exception as e:
         st.error(f"Live odds feed unavailable: {e}")
 
-edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics) if slate_props else pd.DataFrame()
-filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
+edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup) if slate_props else pd.DataFrame()
 
+# =========================================================
+# DEDICATED NEW-WINDOW GAME VIEW (Triggered via ?game=Away+@+Home)
+# =========================================================
+target_game = st.query_params.get("game", "")
+if target_game and "@" in target_game:
+    parts = [t.strip() for t in target_game.split("@")]
+    away_sel, home_sel = parts[0], parts[1]
+    g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
+    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, n_sims=15000)
+
+    top_nav1, _ = st.columns([1.4, 4.6])
+    with top_nav1:
+        st.link_button("← Back to Full Slate", url="?", width="stretch")
+
+    fav_short = home_sel.split()[-1] if detail_sim["proj_spread"] < 0 else away_sel.split()[-1]
+    spread_num = abs(detail_sim["proj_spread"])
+    book_spread_str = f"{home_sel.split()[-1]} {g_line['spread_home']:+.1f}" if g_line["spread_home"] != 0 else "N/A"
+    away_logo = get_team_logo(away_sel)
+    home_logo = get_team_logo(home_sel)
+
+    st.markdown(f"""
+    <div class="game-hero">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+                <div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                    Matchup Simulation & Player Projections · {g_line.get('tip_str', slate_date_label)}
+                </div>
+                <div style="font-size:1.55rem; font-weight:800; color:#F8FAFC; margin-top:0.35rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <img src="{away_logo}" style="width:28px; height:28px; object-fit:contain;" />
+                    <span>{away_sel}</span>
+                    <span style="color:#10B981;">{detail_sim['away_score']}</span>
+                    <span style="color:#64748B; font-size:1.1rem;">@</span>
+                    <img src="{home_logo}" style="width:28px; height:28px; object-fit:contain;" />
+                    <span>{home_sel}</span>
+                    <span style="color:#10B981;">{detail_sim['home_score']}</span>
+                </div>
+            </div>
+            <div style="text-align:right; font-size:0.86rem; color:#CBD5E1; line-height:1.6;">
+                <div>Model Line: <b>{fav_short} -{spread_num}</b> &nbsp;|&nbsp; Book Line: <b>{book_spread_str}</b></div>
+                <div>Model Total: <b>{detail_sim['proj_total']}</b> &nbsp;|&nbsp; Book Total: <b>{g_line['total']}</b></div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("##### Projected Player Box Scores (15,000 Simulations)")
+    b1, b2 = st.columns(2, gap="medium")
+    with b1:
+        render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"])
+    with b2:
+        render_box_score_table(f"{home_sel} (Home)", detail_sim["home_win_prob"], detail_sim["home_box"])
+
+    st.markdown(f"##### All Active Player Lines & Matchup Ratings — {away_sel} @ {home_sel}")
+    game_props_df = edges_df[edges_df["FullMatchup"] == target_game] if not edges_df.empty else pd.DataFrame()
+    if not game_props_df.empty:
+        game_props_df = game_props_df.drop_duplicates(subset=["Player", "Stat"]).sort_values(by=["Stat", "EV"], ascending=[True, False])
+    render_clean_prop_board(
+        game_props_df,
+        f"{away_sel} @ {home_sel} — Player Lines, Projections & Matchup Ratings",
+        "No pre-game player props are currently posted for this matchup."
+    )
+
+    st.markdown(f"""
+    <div class="site-footer">
+        <span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>
+        <span>For informational & entertainment purposes only. Please wager responsibly.</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+# =========================================================
+# MAIN DASHBOARD VIEW
+# =========================================================
+ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.1, 1.5, 1.8, 0.7], vertical_alignment="bottom")
+with ctrl_c1:
+    bookmaker = st.selectbox(
+        "Sportsbook",
+        ["draftkings", "fanduel", "betmgm", "caesars"],
+        index=["draftkings", "fanduel", "betmgm", "caesars"].index(selected_book),
+        format_func=lambda x: {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "caesars": "Caesars"}[x]
+    )
+    if bookmaker != selected_book:
+        st.query_params["book"] = bookmaker
+        st.rerun()
+with ctrl_c2:
+    min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
+with ctrl_c3:
+    search_player = st.text_input("Search", placeholder="Filter by player or team...")
+with ctrl_c4:
+    if st.button("Refresh", icon=":material/refresh:", width="stretch"):
+        fetch_pregame_slate.clear()
+        st.rerun()
+
+filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
 if not filtered.empty and search_player.strip():
     q = search_player.strip()
     filtered = filtered[
@@ -924,9 +1258,9 @@ if not filtered.empty and search_player.strip():
 
 # Top KPI Summary Strip
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric(f"Pre-Game Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
+kpi1.metric(f"Today's Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
 kpi2.metric("Main Lines Evaluated", f"{len(filtered)} Props")
-top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Awaiting Open"
+top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Slate Finalized"
 kpi3.metric("Top Model Edge", top_pick_str)
 kpi4.metric("Last Board Sync", fetched_at)
 
@@ -943,93 +1277,30 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 # =========================================================
 # TAB 1: TOP STRAIGHT BETS (Full-Width Zero-Scrollbar HTML Boards)
 # =========================================================
-def render_clean_prop_board(stat_code: str, section_title: str, top_n: int = 10):
-    stat_df = filtered[filtered["Stat"] == stat_code].head(top_n)
-    if stat_df.empty:
-        st.markdown(f"""
-        <div class="board-card">
-            <div class="board-header">
-                <span class="board-title">{section_title}</span>
-                <span class="board-count">0 Plays</span>
-            </div>
-            <div style="padding: 0.9rem 1rem; color: #8B97AD; font-size: 0.84rem;">
-                No {stat_code} pre-game lines matching your filter right now.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        return
-
-    rows_html = []
-    for _, r in stat_df.iterrows():
-        ev_val = r["EV"]
-        ev_html = f'<span class="ev-pos">{ev_val:+.1f}%</span>' if ev_val > 0 else f'<span class="ev-neg">{ev_val:+.1f}%</span>'
-        rows_html.append(f"""
-        <tr>
-            <td style="width:20%;" class="player-cell">{r['Player']}</td>
-            <td style="width:15%;" class="line-cell">{r['Line']}</td>
-            <td style="width:9%;" class="proj-cell col-right">{r['Projection']:.1f}</td>
-            <td style="width:14%;">{r['Matchup']}</td>
-            <td style="width:16%;" class="{r['RatingClass']}">{r['Matchup Rating']}</td>
-            <td style="width:8%;" class="col-right">{r['Odds']:+d}</td>
-            <td style="width:8%;" class="col-right">{r['Win Prob']:.0f}%</td>
-            <td style="width:10%;" class="col-right">{ev_html}</td>
-        </tr>
-        """)
-
-    table_html = f"""
-    <div class="board-card">
-        <div class="board-header">
-            <span class="board-title">{section_title}</span>
-            <span class="board-count">Top {len(stat_df)} Pre-Game Plays</span>
-        </div>
-        <table class="prop-table">
-            <thead>
-                <tr>
-                    <th style="width:20%;">Player</th>
-                    <th style="width:15%;">Line</th>
-                    <th style="width:9%;" class="col-right">Proj</th>
-                    <th style="width:14%;">Matchup</th>
-                    <th style="width:16%;">Matchup Rating</th>
-                    <th style="width:8%;" class="col-right">Odds</th>
-                    <th style="width:8%;" class="col-right">Win %</th>
-                    <th style="width:10%;" class="col-right">EV %</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(rows_html)}
-            </tbody>
-        </table>
-    </div>
-    """
-    st.markdown(table_html, unsafe_allow_html=True)
-
 with tab_straight:
     if not slate_props:
-        st.info(f"Pre-game player props for {slate_date_label} have not opened on the sportsbook feed yet. Click Refresh once lines post.")
+        st.info(f"All games on {slate_date_label} have concluded or closed pre-game markets. Tomorrow's slate will automatically unlock after midnight ET.")
     elif filtered.empty:
         st.warning(f"No lines match your current filter ({min_ev:+.1f}% EV). Lower the Minimum EV slider above to view all posted props.")
     else:
-        render_clean_prop_board("PTS", "Points Props (PTS)", top_n=10)
-        render_clean_prop_board("REB", "Rebounds Props (REB)", top_n=10)
-        render_clean_prop_board("AST", "Assists Props (AST)", top_n=10)
-        render_clean_prop_board("FG3M", "3-Pointers Made Props (3PM)", top_n=10)
-        render_clean_prop_board("PRA", "Points + Rebounds + Assists (PRA)", top_n=10)
+        render_clean_prop_board(filtered[filtered["Stat"] == "PTS"].head(10), "Points Props (PTS) — Top 10", "No PTS pre-game lines matching your filter.")
+        render_clean_prop_board(filtered[filtered["Stat"] == "REB"].head(10), "Rebounds Props (REB) — Top 10", "No REB pre-game lines matching your filter.")
+        render_clean_prop_board(filtered[filtered["Stat"] == "AST"].head(10), "Assists Props (AST) — Top 10", "No AST pre-game lines matching your filter.")
+        render_clean_prop_board(filtered[filtered["Stat"] == "FG3M"].head(10), "3-Pointers Made Props (3PM) — Top 10", "No 3PM pre-game lines matching your filter.")
+        render_clean_prop_board(filtered[filtered["Stat"] == "PRA"].head(10), "Points + Rebounds + Assists (PRA) — Top 10", "No PRA pre-game lines matching your filter.")
 
 # =========================================================
-# TAB 2: SLATE & CLICK-IN PROJECTED BOX SCORES
+# TAB 2: SLATE & NEW-WINDOW BOX SCORE LAUNCHER
 # =========================================================
 with tab_slate:
-    st.markdown(f"##### {slate_date_label} Pre-Game Projected Scores & Box Scores")
-    st.caption("Simulated 15,000 times using per-minute rate models, opponent defensive ratings, Vegas pace environments, and rest/location splits.")
+    st.markdown(f"##### {slate_date_label} Projected NBA Scores")
+    st.caption("Click any matchup below to open a new window with full team projected box scores, player prop lines, projections, and matchup ratings.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
         "Boston Celtics @ New York Knicks",
         "Dallas Mavericks @ Oklahoma City Thunder"
     ]
-
-    if "selected_box_game" not in st.session_state or st.session_state["selected_box_game"] not in slate_list:
-        st.session_state["selected_box_game"] = slate_list[0]
 
     grid_cols = st.columns(3)
     for idx, g_lbl in enumerate(slate_list):
@@ -1038,20 +1309,23 @@ with tab_slate:
             continue
         away_t, home_t = parts[0], parts[1]
         g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
-        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, n_sims=15000)
+        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, n_sims=15000)
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
         spread_num = abs(sim_res["proj_spread"])
         tip_badge = g_line.get("tip_str", "")
+        game_url = f"?game={quote_plus(g_lbl)}&book={bookmaker}"
+        away_logo = get_team_logo(away_t)
+        home_logo = get_team_logo(home_t)
 
         with grid_cols[idx % 3]:
             st.markdown(f"""
             <div class="matchup-card">
                 <div class="matchup-team-row">
-                    <span class="matchup-team">{away_t} <span class="matchup-prob">({sim_res['away_win_prob']}%)</span></span>
+                    <span class="matchup-team"><img class="team-inline-logo" src="{away_logo}" />{away_t} <span class="matchup-prob">({sim_res['away_win_prob']}%)</span></span>
                     <span class="matchup-pts">{sim_res['away_score']}</span>
                 </div>
                 <div class="matchup-team-row">
-                    <span class="matchup-team">{home_t} <span class="matchup-prob">({sim_res['home_win_prob']}%)</span></span>
+                    <span class="matchup-team"><img class="team-inline-logo" src="{home_logo}" />{home_t} <span class="matchup-prob">({sim_res['home_win_prob']}%)</span></span>
                     <span class="matchup-pts">{sim_res['home_score']}</span>
                 </div>
                 <div class="matchup-footer">
@@ -1060,38 +1334,12 @@ with tab_slate:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button(f"View Box Score · {away_t.split()[-1]} @ {home_t.split()[-1]}", key=f"btn_box_{idx}", width="stretch"):
-                st.session_state["selected_box_game"] = g_lbl
-
-    st.divider()
-
-    active_game = st.selectbox(
-        "Projected Box Score Matchup",
-        slate_list,
-        index=slate_list.index(st.session_state["selected_box_game"])
-    )
-    st.session_state["selected_box_game"] = active_game
-
-    away_sel, home_sel = [t.strip() for t in active_game.split("@")]
-    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, game_lines.get(active_game, {"spread_home": 0.0, "total": 228.0}), n_sims=15000)
-
-    st.markdown(f"##### Projected Box Score: {away_sel} ({detail_sim['away_score']}) @ {home_sel} ({detail_sim['home_score']})")
-    box_c1, box_c2 = st.columns(2, gap="large")
-    box_cfg = {
-        "Player": st.column_config.TextColumn("Player", width="medium"),
-        "MIN": st.column_config.NumberColumn("MIN", format="%.1f"),
-        "PTS": st.column_config.NumberColumn("PTS", format="%.1f"),
-        "REB": st.column_config.NumberColumn("REB", format="%.1f"),
-        "AST": st.column_config.NumberColumn("AST", format="%.1f"),
-        "3PM": st.column_config.NumberColumn("3PM", format="%.1f"),
-        "PRA": st.column_config.NumberColumn("PRA", format="%.1f"),
-    }
-    with box_c1:
-        st.caption(f"{away_sel} (Away) · Win Probability: {detail_sim['away_win_prob']}%")
-        st.dataframe(detail_sim["away_box"], width="stretch", hide_index=True, column_config=box_cfg)
-    with box_c2:
-        st.caption(f"{home_sel} (Home) · Win Probability: {detail_sim['home_win_prob']}%")
-        st.dataframe(detail_sim["home_box"], width="stretch", hide_index=True, column_config=box_cfg)
+            st.link_button(
+                f"Open Box Score & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
+                url=game_url,
+                icon=":material/open_in_new:",
+                width="stretch"
+            )
 
 # =========================================================
 # TAB 3: AUTO-PARLAY BUILDER
@@ -1121,10 +1369,11 @@ with tab_parlays:
                     slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg +EV Parlay | {parlay_odds:+d})"]
                     for _, row in best_per_game.iterrows():
                         slip_lines.append(f"- {row['Player']} | {row['Line']} ({row['Odds']:+d})")
+                        p_badge = player_badge_html(row["Player"], row["Headshot"], row["TeamLogo"])
                         st.markdown(f"""
                         <div class="pick-card">
                             <div class="pick-top">
-                                <span class="pick-player">{row['Player']}</span>
+                                {p_badge}
                                 <span class="ev-pos">{row['Odds']:+d}</span>
                             </div>
                             <div class="pick-line">{row['Line']}</div>
