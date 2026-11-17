@@ -23,277 +23,275 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 2.5rem;
-        max-width: 1320px;
-    }
-    #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
-    section[data-testid="stSidebar"] { display: none; }
-    div[data-testid="stDecoration"] { display: none; }
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.block-container {
+    padding-top: 1.2rem;
+    padding-bottom: 2.5rem;
+    max-width: 1320px;
+}
+#MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
+section[data-testid="stSidebar"] { display: none; }
+div[data-testid="stDecoration"] { display: none; }
 
-    .brand-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.95rem 1.35rem;
-        background: #111622;
-        border: 1px solid #1E2638;
-        border-radius: 12px;
-        margin-bottom: 0.85rem;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-    .brand-left { display: flex; align-items: center; gap: 0.8rem; }
-    .brand-logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 9px;
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 800;
-        font-size: 1.05rem;
-        color: #06100C;
-        letter-spacing: -0.5px;
-    }
-    .brand-name {
-        font-size: 1.38rem;
-        font-weight: 800;
-        color: #F8FAFC;
-        letter-spacing: -0.4px;
-        margin: 0;
-        line-height: 1.15;
-    }
-    .brand-sub {
-        font-size: 0.8rem;
-        color: #8B97AD;
-        margin: 0.1rem 0 0 0;
-    }
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.28);
-        color: #34D399;
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 4px 11px;
-        border-radius: 999px;
-    }
-    .status-dot {
-        width: 7px;
-        height: 7px;
-        background: #10B981;
-        border-radius: 50%;
-    }
+.brand-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.95rem 1.35rem;
+    background: #111622;
+    border: 1px solid #1E2638;
+    border-radius: 12px;
+    margin-bottom: 0.85rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+.brand-left { display: flex; align-items: center; gap: 0.8rem; }
+.brand-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #06100C;
+    letter-spacing: -0.5px;
+}
+.brand-name {
+    font-size: 1.38rem;
+    font-weight: 800;
+    color: #F8FAFC;
+    letter-spacing: -0.4px;
+    margin: 0;
+    line-height: 1.15;
+}
+.brand-sub {
+    font-size: 0.8rem;
+    color: #8B97AD;
+    margin: 0.1rem 0 0 0;
+}
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    color: #34D399;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 11px;
+    border-radius: 999px;
+}
+.status-dot {
+    width: 7px;
+    height: 7px;
+    background: #10B981;
+    border-radius: 50%;
+}
 
-    /* Player Avatar + Team Logo Badge */
-    .player-flex {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        overflow: hidden;
-    }
-    .headshot-wrap {
-        position: relative;
-        width: 32px;
-        height: 32px;
-        flex-shrink: 0;
-    }
-    .headshot-img {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        object-fit: cover;
-        background: #1E2638;
-        border: 1px solid #2D3952;
-    }
-    .team-mini-logo {
-        position: absolute;
-        bottom: -2px;
-        right: -3px;
-        width: 15px;
-        height: 15px;
-        border-radius: 50%;
-        background: #0F1420;
-        padding: 1px;
-        object-fit: contain;
-        border: 1px solid #263147;
-    }
-    .team-inline-logo {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-        vertical-align: middle;
-        margin-right: 6px;
-    }
-    .player-name-txt {
-        font-weight: 600;
-        color: #F8FAFC;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+.player-flex {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    overflow: hidden;
+}
+.headshot-wrap {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+.headshot-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #1E2638;
+    border: 1px solid #2D3952;
+}
+.team-mini-logo {
+    position: absolute;
+    bottom: -2px;
+    right: -3px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #0F1420;
+    padding: 1px;
+    object-fit: contain;
+    border: 1px solid #263147;
+}
+.team-inline-logo {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+.player-name-txt {
+    font-weight: 600;
+    color: #F8FAFC;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
-    /* Full-Width Zero-Scrollbar Prop & Box Score Tables */
-    .board-card {
-        background: #111622;
-        border: 1px solid #1E2638;
-        border-radius: 11px;
-        margin-bottom: 1.1rem;
-        overflow: hidden;
-    }
-    .board-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.65rem 1rem;
-        background: #151C2C;
-        border-bottom: 1px solid #1E2638;
-        border-left: 3px solid #10B981;
-    }
-    .board-title {
-        font-size: 0.96rem;
-        font-weight: 700;
-        color: #F8FAFC;
-        letter-spacing: -0.2px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .board-count {
-        font-size: 0.73rem;
-        font-weight: 600;
-        color: #94A3B8;
-        background: #1E2638;
-        padding: 2px 9px;
-        border-radius: 999px;
-    }
-    table.prop-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.83rem;
-        table-layout: fixed;
-    }
-    table.prop-table th {
-        text-align: left;
-        padding: 0.52rem 0.75rem;
-        color: #8B97AD;
-        font-weight: 600;
-        font-size: 0.74rem;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        border-bottom: 1px solid #1E2638;
-        background: #111622;
-    }
-    table.prop-table td {
-        padding: 0.46rem 0.75rem;
-        color: #E2E8F0;
-        border-bottom: 1px solid #182032;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        vertical-align: middle;
-    }
-    table.prop-table tr:last-child td { border-bottom: none; }
-    table.prop-table tr:hover td { background: #161E30; }
-    .col-right { text-align: right !important; }
-    .line-cell { font-weight: 600; color: #38BDF8; }
-    .proj-cell { font-weight: 700; color: #F8FAFC; }
-    .ev-pos {
-        display: inline-block;
-        background: rgba(16, 185, 129, 0.15);
-        color: #34D399;
-        border: 1px solid rgba(16, 185, 129, 0.35);
-        padding: 1px 7px;
-        border-radius: 999px;
-        font-weight: 700;
-        font-size: 0.76rem;
-    }
-    .ev-neg {
-        color: #94A3B8;
-        font-weight: 500;
-        font-size: 0.78rem;
-    }
-    .rating-good { color: #34D399; font-weight: 600; }
-    .rating-bad { color: #F87171; font-weight: 600; }
-    .rating-neutral { color: #94A3B8; }
+.board-card {
+    background: #111622;
+    border: 1px solid #1E2638;
+    border-radius: 11px;
+    margin-bottom: 1.1rem;
+    overflow: hidden;
+}
+.board-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    background: #151C2C;
+    border-bottom: 1px solid #1E2638;
+    border-left: 3px solid #10B981;
+}
+.board-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+    color: #F8FAFC;
+    letter-spacing: -0.2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.board-count {
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: #94A3B8;
+    background: #1E2638;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+table.prop-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+    table-layout: fixed;
+}
+table.prop-table th {
+    text-align: left;
+    padding: 0.52rem 0.75rem;
+    color: #8B97AD;
+    font-weight: 600;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid #1E2638;
+    background: #111622;
+}
+table.prop-table td {
+    padding: 0.46rem 0.75rem;
+    color: #E2E8F0;
+    border-bottom: 1px solid #182032;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+table.prop-table tr:last-child td { border-bottom: none; }
+table.prop-table tr:hover td { background: #161E30; }
+.col-right { text-align: right !important; }
+.line-cell { font-weight: 600; color: #38BDF8; }
+.proj-cell { font-weight: 700; color: #F8FAFC; }
+.ev-pos {
+    display: inline-block;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34D399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.76rem;
+}
+.ev-neg {
+    color: #94A3B8;
+    font-weight: 500;
+    font-size: 0.78rem;
+}
+.rating-good { color: #34D399; font-weight: 600; }
+.rating-bad { color: #F87171; font-weight: 600; }
+.rating-neutral { color: #94A3B8; }
 
-    .pick-card {
-        background: #111622;
-        border: 1px solid #1E2638;
-        border-radius: 10px;
-        padding: 0.85rem 1rem;
-        margin-bottom: 0.5rem;
-    }
-    .pick-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.25rem;
-    }
-    .pick-line { font-size: 0.92rem; font-weight: 600; color: #10B981; margin-bottom: 0.25rem; }
-    .pick-details { font-size: 0.79rem; color: #8B97AD; line-height: 1.4; }
+.pick-card {
+    background: #111622;
+    border: 1px solid #1E2638;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.5rem;
+}
+.pick-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+.pick-line { font-size: 0.92rem; font-weight: 600; color: #10B981; margin-bottom: 0.25rem; }
+.pick-details { font-size: 0.79rem; color: #8B97AD; line-height: 1.4; }
 
-    .matchup-card {
-        background: #111622;
-        border: 1px solid #1E2638;
-        border-radius: 11px;
-        padding: 1rem 1.15rem;
-        margin-bottom: 0.5rem;
-    }
-    .matchup-team-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.28rem 0;
-    }
-    .matchup-team {
-        font-size: 0.96rem;
-        font-weight: 600;
-        color: #F1F5F9;
-        display: flex;
-        align-items: center;
-    }
-    .matchup-prob { font-size: 0.78rem; color: #64748B; margin-left: 5px; }
-    .matchup-pts { font-size: 1.25rem; font-weight: 800; color: #10B981; }
-    .matchup-footer {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 0.55rem;
-        padding-top: 0.5rem;
-        border-top: 1px solid #1A2234;
-        font-size: 0.78rem;
-        color: #8B97AD;
-    }
+.matchup-card {
+    background: #111622;
+    border: 1px solid #1E2638;
+    border-radius: 11px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 0.5rem;
+}
+.matchup-team-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.28rem 0;
+}
+.matchup-team {
+    font-size: 0.96rem;
+    font-weight: 600;
+    color: #F1F5F9;
+    display: flex;
+    align-items: center;
+}
+.matchup-prob { font-size: 0.78rem; color: #64748B; margin-left: 5px; }
+.matchup-pts { font-size: 1.25rem; font-weight: 800; color: #10B981; }
+.matchup-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.55rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #1A2234;
+    font-size: 0.78rem;
+    color: #8B97AD;
+}
 
-    .game-hero {
-        background: linear-gradient(135deg, #111622 0%, #161F33 100%);
-        border: 1px solid #26324B;
-        border-radius: 12px;
-        padding: 1.25rem 1.5rem;
-        margin-bottom: 1.25rem;
-    }
+.game-hero {
+    background: linear-gradient(135deg, #111622 0%, #161F33 100%);
+    border: 1px solid #26324B;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+}
 
-    .site-footer {
-        margin-top: 2.5rem;
-        padding-top: 1.1rem;
-        border-top: 1px solid #1E2638;
-        display: flex;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        font-size: 0.76rem;
-        color: #64748B;
-    }
+.site-footer {
+    margin-top: 2.5rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid #1E2638;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.76rem;
+    color: #64748B;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -701,7 +699,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
             p_media = media_lookup.get(norm_p, {})
             headshot_url = p_media.get("headshot", DEFAULT_HEADSHOT)
-            team_logo_url = p_media.get("team_logo", get_team_logo(player_team))
+            team_logo_url = get_team_logo(player_team)
 
             min_vals = p_df["MIN"].dropna().tail(30).values
             proj_min = exp_weighted_mean(min_vals, decay=0.90)
@@ -781,19 +779,24 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
     today_ts = pd.Timestamp.now().normalize()
     vegas_total = game_line.get("total", 228.0)
     vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
+    max_season = df["SEASON"].max()
 
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
         if t_df.empty:
             return np.full(n_sims, 110.0), pd.DataFrame()
 
-        recent_games = t_df["GAME_ID"].drop_duplicates().tail(15)
-        recent_df = t_df[t_df["GAME_ID"].isin(recent_games)]
+        # Filter to current active season so departed players don't appear in rotation
+        curr_season_df = t_df[t_df["SEASON"] == max_season]
+        active_pool = curr_season_df if not curr_season_df.empty else t_df
+
+        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(10)
+        recent_df = active_pool[active_pool["GAME_ID"].isin(recent_games)]
 
         rot_players = (
             recent_df.groupby("PLAYER_NAME")["MIN"]
             .agg(["count", "mean"])
-            .query("count >= 3")
+            .query("count >= 2")
             .sort_values(by="mean", ascending=False)
             .head(10)
             .index.tolist()
@@ -835,6 +838,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         u = norm.cdf(z)
         sim_pts_matrix = np.zeros((n_sims, len(rot_players)))
         box_rows = []
+        team_logo_url = get_team_logo(team)
 
         for idx, p_info in enumerate(player_params):
             pts_m, pts_s = p_info["stats"]["PTS"]
@@ -857,7 +861,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             box_rows.append({
                 "Player": p_info["player"],
                 "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
-                "TeamLogo": p_media.get("team_logo", get_team_logo(team)),
+                "TeamLogo": team_logo_url,
                 "MIN": round(p_info["min"], 1),
                 "PTS": round(float(np.mean(sim_p)), 1),
                 "REB": round(float(np.mean(sim_r)), 1),
@@ -999,20 +1003,15 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Reusable Zero-Scrollbar HTML Table Renderer
+# Zero-Indentation HTML Renderers (Prevents Streamlit Markdown Code-Block Escaping)
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str):
     if source_df.empty:
-        st.markdown(f"""
-        <div class="board-card">
-            <div class="board-header">
-                <span class="board-title">{section_title}</span>
-                <span class="board-count">0 Plays</span>
-            </div>
-            <div style="padding: 0.9rem 1rem; color: #8B97AD; font-size: 0.84rem;">
-                {empty_msg}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="board-card"><div class="board-header"><span class="board-title">{section_title}</span>'
+            f'<span class="board-count">0 Plays</span></div>'
+            f'<div style="padding: 0.9rem 1rem; color: #8B97AD; font-size: 0.84rem;">{empty_msg}</div></div>',
+            unsafe_allow_html=True
+        )
         return
 
     rows_html = []
@@ -1020,44 +1019,36 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
         ev_val = r["EV"]
         ev_html = f'<span class="ev-pos">{ev_val:+.1f}%</span>' if ev_val > 0 else f'<span class="ev-neg">{ev_val:+.1f}%</span>'
         p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"])
-        rows_html.append(f"""
-        <tr>
-            <td style="width:23%;">{p_cell}</td>
-            <td style="width:14%;" class="line-cell">{r['Line']}</td>
-            <td style="width:8%;" class="proj-cell col-right">{r['Projection']:.1f}</td>
-            <td style="width:13%;">{r['Matchup']}</td>
-            <td style="width:16%;" class="{r['RatingClass']}">{r['Matchup Rating']}</td>
-            <td style="width:8%;" class="col-right">{r['Odds']:+d}</td>
-            <td style="width:8%;" class="col-right">{r['Win Prob']:.0f}%</td>
-            <td style="width:10%;" class="col-right">{ev_html}</td>
-        </tr>
-        """)
+        rows_html.append(
+            f'<tr>'
+            f'<td style="width:23%;">{p_cell}</td>'
+            f'<td style="width:14%;" class="line-cell">{r["Line"]}</td>'
+            f'<td style="width:8%;" class="proj-cell col-right">{r["Projection"]:.1f}</td>'
+            f'<td style="width:13%;">{r["Matchup"]}</td>'
+            f'<td style="width:16%;" class="{r["RatingClass"]}">{r["Matchup Rating"]}</td>'
+            f'<td style="width:8%;" class="col-right">{r["Odds"]:+d}</td>'
+            f'<td style="width:8%;" class="col-right">{r["Win Prob"]:.0f}%</td>'
+            f'<td style="width:10%;" class="col-right">{ev_html}</td>'
+            f'</tr>'
+        )
 
-    table_html = f"""
-    <div class="board-card">
-        <div class="board-header">
-            <span class="board-title">{section_title}</span>
-            <span class="board-count">{len(source_df)} Plays</span>
-        </div>
-        <table class="prop-table">
-            <thead>
-                <tr>
-                    <th style="width:23%;">Player</th>
-                    <th style="width:14%;">Line</th>
-                    <th style="width:8%;" class="col-right">Proj</th>
-                    <th style="width:13%;">Matchup</th>
-                    <th style="width:16%;">Matchup Rating</th>
-                    <th style="width:8%;" class="col-right">Odds</th>
-                    <th style="width:8%;" class="col-right">Win %</th>
-                    <th style="width:10%;" class="col-right">EV %</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(rows_html)}
-            </tbody>
-        </table>
-    </div>
-    """
+    table_html = (
+        f'<div class="board-card">'
+        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">{len(source_df)} Plays</span></div>'
+        f'<table class="prop-table">'
+        f'<thead><tr>'
+        f'<th style="width:23%;">Player</th>'
+        f'<th style="width:14%;">Line</th>'
+        f'<th style="width:8%;" class="col-right">Proj</th>'
+        f'<th style="width:13%;">Matchup</th>'
+        f'<th style="width:16%;">Matchup Rating</th>'
+        f'<th style="width:8%;" class="col-right">Odds</th>'
+        f'<th style="width:8%;" class="col-right">Win %</th>'
+        f'<th style="width:10%;" class="col-right">EV %</th>'
+        f'</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody>'
+        f'</table></div>'
+    )
     st.markdown(table_html, unsafe_allow_html=True)
 
 def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame):
@@ -1065,42 +1056,34 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
     rows_html = []
     for _, r in box_df.iterrows():
         p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"])
-        rows_html.append(f"""
-        <tr>
-            <td style="width:36%;">{p_cell}</td>
-            <td style="width:10%;" class="col-right">{r['MIN']:.1f}</td>
-            <td style="width:11%;" class="proj-cell col-right">{r['PTS']:.1f}</td>
-            <td style="width:10%;" class="col-right">{r['REB']:.1f}</td>
-            <td style="width:10%;" class="col-right">{r['AST']:.1f}</td>
-            <td style="width:11%;" class="col-right">{r['3PM']:.1f}</td>
-            <td style="width:12%;" class="line-cell col-right">{r['PRA']:.1f}</td>
-        </tr>
-        """)
+        rows_html.append(
+            f'<tr>'
+            f'<td style="width:36%;">{p_cell}</td>'
+            f'<td style="width:10%;" class="col-right">{r["MIN"]:.1f}</td>'
+            f'<td style="width:11%;" class="proj-cell col-right">{r["PTS"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["REB"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["AST"]:.1f}</td>'
+            f'<td style="width:11%;" class="col-right">{r["3PM"]:.1f}</td>'
+            f'<td style="width:12%;" class="line-cell col-right">{r["PRA"]:.1f}</td>'
+            f'</tr>'
+        )
 
-    html = f"""
-    <div class="board-card">
-        <div class="board-header">
-            <span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span>
-            <span class="board-count">Win Prob: {win_prob:.1f}%</span>
-        </div>
-        <table class="prop-table">
-            <thead>
-                <tr>
-                    <th style="width:36%;">Player</th>
-                    <th style="width:10%;" class="col-right">MIN</th>
-                    <th style="width:11%;" class="col-right">PTS</th>
-                    <th style="width:10%;" class="col-right">REB</th>
-                    <th style="width:10%;" class="col-right">AST</th>
-                    <th style="width:11%;" class="col-right">3PM</th>
-                    <th style="width:12%;" class="col-right">PRA</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(rows_html)}
-            </tbody>
-        </table>
-    </div>
-    """
+    html = (
+        f'<div class="board-card">'
+        f'<div class="board-header"><span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span><span class="board-count">Win Prob: {win_prob:.1f}%</span></div>'
+        f'<table class="prop-table">'
+        f'<thead><tr>'
+        f'<th style="width:36%;">Player</th>'
+        f'<th style="width:10%;" class="col-right">MIN</th>'
+        f'<th style="width:11%;" class="col-right">PTS</th>'
+        f'<th style="width:10%;" class="col-right">REB</th>'
+        f'<th style="width:10%;" class="col-right">AST</th>'
+        f'<th style="width:11%;" class="col-right">3PM</th>'
+        f'<th style="width:12%;" class="col-right">PRA</th>'
+        f'</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody>'
+        f'</table></div>'
+    )
     st.markdown(html, unsafe_allow_html=True)
 
 # Initialize same-tab navigation state
@@ -1121,18 +1104,12 @@ except Exception:
     saved_key = ""
 
 # Top Brand Header
-st.markdown(f"""
-<div class="brand-bar">
-    <div class="brand-left">
-        <div class="brand-logo">HP</div>
-        <div>
-            <p class="brand-name">{BRAND_NAME}</p>
-            <p class="brand-sub">{BRAND_SUBTITLE}</p>
-        </div>
-    </div>
-    <span class="status-badge"><span class="status-dot"></span> TODAY'S PRE-GAME SLATE</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="brand-bar"><div class="brand-left"><div class="brand-logo">HP</div>'
+    f'<div><p class="brand-name">{BRAND_NAME}</p><p class="brand-sub">{BRAND_SUBTITLE}</p></div></div>'
+    f'<span class="status-badge"><span class="status-dot"></span> TODAY\'S PRE-GAME SLATE</span></div>',
+    unsafe_allow_html=True
+)
 
 if not saved_key:
     saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
@@ -1177,30 +1154,21 @@ if target_game and "@" in target_game:
     away_logo = get_team_logo(away_sel)
     home_logo = get_team_logo(home_sel)
 
-    st.markdown(f"""
-    <div class="game-hero">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-            <div>
-                <div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
-                    Matchup Simulation & Player Projections · {g_line.get('tip_str', slate_date_label)}
-                </div>
-                <div style="font-size:1.55rem; font-weight:800; color:#F8FAFC; margin-top:0.35rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
-                    <img src="{away_logo}" style="width:28px; height:28px; object-fit:contain;" />
-                    <span>{away_sel}</span>
-                    <span style="color:#10B981;">{detail_sim['away_score']}</span>
-                    <span style="color:#64748B; font-size:1.1rem;">@</span>
-                    <img src="{home_logo}" style="width:28px; height:28px; object-fit:contain;" />
-                    <span>{home_sel}</span>
-                    <span style="color:#10B981;">{detail_sim['home_score']}</span>
-                </div>
-            </div>
-            <div style="text-align:right; font-size:0.86rem; color:#CBD5E1; line-height:1.6;">
-                <div>Model Line: <b>{fav_short} -{spread_num}</b> &nbsp;|&nbsp; Book Line: <b>{book_spread_str}</b></div>
-                <div>Model Total: <b>{detail_sim['proj_total']}</b> &nbsp;|&nbsp; Book Total: <b>{g_line['total']}</b></div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
+        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">'
+        f'Matchup Simulation & Player Projections · {g_line.get("tip_str", slate_date_label)}</div>'
+        f'<div style="font-size:1.55rem; font-weight:800; color:#F8FAFC; margin-top:0.35rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">'
+        f'<img src="{away_logo}" style="width:28px; height:28px; object-fit:contain;" /><span>{away_sel}</span>'
+        f'<span style="color:#10B981;">{detail_sim["away_score"]}</span><span style="color:#64748B; font-size:1.1rem;">@</span>'
+        f'<img src="{home_logo}" style="width:28px; height:28px; object-fit:contain;" /><span>{home_sel}</span>'
+        f'<span style="color:#10B981;">{detail_sim["home_score"]}</span></div></div>'
+        f'<div style="text-align:right; font-size:0.86rem; color:#CBD5E1; line-height:1.6;">'
+        f'<div>Model Line: <b>{fav_short} -{spread_num}</b> &nbsp;|&nbsp; Book Line: <b>{book_spread_str}</b></div>'
+        f'<div>Model Total: <b>{detail_sim["proj_total"]}</b> &nbsp;|&nbsp; Book Total: <b>{g_line["total"]}</b></div>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown("##### Projected Player Box Scores (15,000 Simulations)")
     b1, b2 = st.columns(2, gap="medium")
@@ -1219,12 +1187,11 @@ if target_game and "@" in target_game:
         "No pre-game player props are currently posted for this matchup."
     )
 
-    st.markdown(f"""
-    <div class="site-footer">
-        <span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>
-        <span>For informational & entertainment purposes only. Please wager responsibly.</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
+        f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
+        unsafe_allow_html=True
+    )
     st.stop()
 
 # =========================================================
@@ -1319,22 +1286,14 @@ with tab_slate:
         home_logo = get_team_logo(home_t)
 
         with grid_cols[idx % 3]:
-            st.markdown(f"""
-            <div class="matchup-card">
-                <div class="matchup-team-row">
-                    <span class="matchup-team"><img class="team-inline-logo" src="{away_logo}" />{away_t} <span class="matchup-prob">({sim_res['away_win_prob']}%)</span></span>
-                    <span class="matchup-pts">{sim_res['away_score']}</span>
-                </div>
-                <div class="matchup-team-row">
-                    <span class="matchup-team"><img class="team-inline-logo" src="{home_logo}" />{home_t} <span class="matchup-prob">({sim_res['home_win_prob']}%)</span></span>
-                    <span class="matchup-pts">{sim_res['home_score']}</span>
-                </div>
-                <div class="matchup-footer">
-                    <span>{tip_badge} · Line: <b>{fav_short} -{spread_num}</b></span>
-                    <span>Total: <b>{sim_res['proj_total']}</b></span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="matchup-card">'
+                f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{away_logo}" />{away_t} <span class="matchup-prob">({sim_res["away_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["away_score"]}</span></div>'
+                f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{home_logo}" />{home_t} <span class="matchup-prob">({sim_res["home_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["home_score"]}</span></div>'
+                f'<div class="matchup-footer"><span>{tip_badge} · Line: <b>{fav_short} -{spread_num}</b></span><span>Total: <b>{sim_res["proj_total"]}</b></span></div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
             if st.button(
                 f"View Box Score & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
                 key=f"open_game_{idx}",
@@ -1373,16 +1332,12 @@ with tab_parlays:
                     for _, row in best_per_game.iterrows():
                         slip_lines.append(f"- {row['Player']} | {row['Line']} ({row['Odds']:+d})")
                         p_badge = player_badge_html(row["Player"], row["Headshot"], row["TeamLogo"])
-                        st.markdown(f"""
-                        <div class="pick-card">
-                            <div class="pick-top">
-                                {p_badge}
-                                <span class="ev-pos">{row['Odds']:+d}</span>
-                            </div>
-                            <div class="pick-line">{row['Line']}</div>
-                            <div class="pick-details">Proj: <b>{row['Projection']}</b> · Rating: <b>{row['Matchup Rating']}</b> · EV: <b>{row['EV']:+.1f}%</b></div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(
+                            f'<div class="pick-card"><div class="pick-top">{p_badge}<span class="ev-pos">{row["Odds"]:+d}</span></div>'
+                            f'<div class="pick-line">{row["Line"]}</div>'
+                            f'<div class="pick-details">Proj: <b>{row["Projection"]}</b> · Rating: <b>{row["Matchup Rating"]}</b> · EV: <b>{row["EV"]:+.1f}%</b></div></div>',
+                            unsafe_allow_html=True
+                        )
 
                     with st.expander("Copy Parlay Slip", icon=":material/content_copy:"):
                         st.code("\n".join(slip_lines), language=None)
@@ -1454,9 +1409,8 @@ with tab_custom:
             st.dataframe(res["corr_df"], width="stretch")
 
 # Clean Bespoke Footer
-st.markdown(f"""
-<div class="site-footer">
-    <span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>
-    <span>For informational & entertainment purposes only. Please wager responsibly.</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
+    f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
+    unsafe_allow_html=True
+)
