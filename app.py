@@ -46,6 +46,17 @@ st.markdown("""
         font-weight: 700;
         letter-spacing: 0.4px;
     }
+    .section-header {
+        background-color: #111827;
+        border-left: 3px solid #10B981;
+        padding: 0.55rem 0.9rem;
+        border-radius: 6px;
+        margin-top: 1.25rem;
+        margin-bottom: 0.65rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #F9FAFB;
+    }
     .game-card {
         background: linear-gradient(135deg, #111827 0%, #1E293B 100%);
         border: 1px solid #334155;
@@ -107,7 +118,7 @@ st.markdown(f"""
         <p class="hero-title">🏀 {BRAND_NAME}</p>
         <p class="hero-sub">{BRAND_TAGLINE}</p>
     </div>
-    <span class="live-pill">● LIVE QUANT & SIM ENGINE</span>
+    <span class="live-pill">● AUTO-SYNCED LIVE BOARD</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -154,7 +165,6 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
 
 @st.cache_data
 def compute_matchup_ratings(df: pd.DataFrame) -> dict:
-    """Computes defensive multipliers (>1.0 = favorable/soft defense, <1.0 = tough defense)."""
     if "OPP_NAME" not in df.columns:
         return {}
     stats = ["PTS", "REB", "AST", "FG3M"]
@@ -165,7 +175,6 @@ def compute_matchup_ratings(df: pd.DataFrame) -> dict:
     return multipliers.to_dict(orient="index")
 
 def format_matchup_rating(mult: float) -> str:
-    """Converts a defensive multiplier into a clean 100-scale matchup rating badge."""
     score = round(mult * 100, 1)
     if score >= 102.0:
         return f"🟢 {score} (Smash)"
@@ -177,51 +186,65 @@ def format_matchup_rating(mult: float) -> str:
         return f"🟡 {score} (Below Avg)"
     return f"⚪ {score} (Neutral)"
 
-@st.cache_data(ttl=900)
-def fetch_tonights_nba_games(api_key: str) -> list:
-    url = "https://api.the-odds-api.com/v4/sports/basketball_nba/events"
-    res = requests.get(url, params={"apiKey": api_key}, timeout=10)
-    res.raise_for_status()
-    return res.json()
+@st.cache_data(ttl=1800)
+def fetch_full_slate_props(api_key: str, bookmaker: str = "draftkings", max_games: int = 6):
+    """Automatically fetches tonight's NBA slate and player props (cached globally for 30 mins)."""
+    events_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/events"
+    ev_res = requests.get(events_url, params={"apiKey": api_key}, timeout=10)
+    ev_res.raise_for_status()
+    games = ev_res.json()
 
-@st.cache_data(ttl=900)
-def fetch_game_player_props(api_key: str, event_id: str, bookmaker: str = "draftkings") -> dict:
     market_map = {
         "player_points": "PTS",
         "player_rebounds": "REB",
         "player_assists": "AST",
         "player_threes": "FG3M",
     }
-    url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{event_id}/odds"
-    params = {
-        "apiKey": api_key,
-        "regions": "us",
-        "markets": ",".join(market_map.keys()),
-        "oddsFormat": "american",
-        "bookmakers": bookmaker
-    }
-    res = requests.get(url, params=params, timeout=15)
-    res.raise_for_status()
-    data = res.json()
+    slate_props = {}
+    all_game_labels = []
 
-    props = {}
-    for book in data.get("bookmakers", []):
-        for market in book.get("markets", []):
-            stat_code = market_map.get(market["key"])
-            if not stat_code:
-                continue
-            for outcome in market.get("outcomes", []):
-                player = outcome.get("description")
-                side = outcome.get("name")
-                line = outcome.get("point")
-                price = outcome.get("price")
-                if not player or side not in ("Over", "Under") or line is None:
+    for g in games:
+        lbl = f"{g['away_team']} @ {g['home_team']}"
+        all_game_labels.append(lbl)
+
+    for g in games[:max_games]:
+        lbl = f"{g['away_team']} @ {g['home_team']}"
+        url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{g['id']}/odds"
+        params = {
+            "apiKey": api_key,
+            "regions": "us",
+            "markets": ",".join(market_map.keys()),
+            "oddsFormat": "american",
+            "bookmakers": bookmaker
+        }
+        try:
+            res = requests.get(url, params=params, timeout=12)
+            res.raise_for_status()
+            data = res.json()
+        except Exception:
+            continue
+
+        props = {}
+        for book in data.get("bookmakers", []):
+            for market in book.get("markets", []):
+                stat_code = market_map.get(market["key"])
+                if not stat_code:
                     continue
-                norm_p = normalize_name(player)
-                entry = props.setdefault(norm_p, {"display_name": player, "stats": {}})
-                stat_entry = entry["stats"].setdefault(stat_code, {"line": float(line)})
-                stat_entry[side] = int(price)
-    return props
+                for outcome in market.get("outcomes", []):
+                    player = outcome.get("description")
+                    side = outcome.get("name")
+                    line = outcome.get("point")
+                    price = outcome.get("price")
+                    if not player or side not in ("Over", "Under") or line is None:
+                        continue
+                    norm_p = normalize_name(player)
+                    entry = props.setdefault(norm_p, {"display_name": player, "stats": {}})
+                    stat_entry = entry["stats"].setdefault(stat_code, {"line": float(line)})
+                    stat_entry[side] = int(price)
+        if props:
+            slate_props[lbl] = props
+
+    return all_game_labels, slate_props
 
 def american_to_prob(odds: int) -> float:
     return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
@@ -295,7 +318,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
                     ev_pct = (mod_p * dec - 1) * 100
                     edge_pct = (mod_p - nv_p) * 100
                     units = quarter_kelly_units(mod_p, dec)
-                    # For Under bets, invert matchup rating display so green = favorable for the Under
                     rating_mult = adj_mult if side == "Over" else (2.0 - adj_mult)
                     rows.append({
                         "Player": p_data["display_name"],
@@ -317,9 +339,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
         return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=1800)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_ratings: dict, n_sims: int = 10000):
-    """Simulates a full NBA game bottom-up from active rotation player distributions & matchup ratings."""
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
         if t_df.empty:
@@ -357,7 +378,6 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
                 stats_proj[st_col] = (mean_val, std_val)
             player_params.append({"player": p, "min": mins, "stats": stats_proj})
 
-        # Create a writable NumPy copy (.to_numpy().copy()) to prevent read-only diagonal errors
         piv_pts = sub.pivot(index="GAME_ID", columns="PLAYER_NAME", values="PTS").reindex(columns=rot_players)
         corr = piv_pts.corr(min_periods=6).fillna(0.0).to_numpy().copy()
         np.fill_diagonal(corr, 1.0)
@@ -529,11 +549,11 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-with st.spinner("Syncing NBA box scores & defensive matchup ratings..."):
+with st.spinner("Loading NBA database & live sportsbook lines..."):
     df = load_nba_data()
     def_ratings = compute_matchup_ratings(df)
 
-# Sidebar Controls
+# Minimalist Sidebar: Sportsbook & Cache Status
 saved_key = ""
 try:
     saved_key = st.secrets.get("ODDS_API_KEY", "")
@@ -542,33 +562,20 @@ except Exception:
 
 st.sidebar.markdown(f"### ⚙️ {BRAND_NAME}")
 api_key = saved_key if saved_key else st.sidebar.text_input("The Odds API Key", type="password")
-bookmaker = st.sidebar.selectbox("Sportsbook", ["draftkings", "fanduel", "betmgm", "caesars"], format_func=str.upper)
+bookmaker = st.sidebar.selectbox("Sportsbook Feed", ["draftkings", "fanduel", "betmgm", "caesars"], format_func=str.upper)
 
-games = []
-game_labels = {}
+all_game_labels = []
+slate_props = {}
+
 if api_key:
     try:
-        games = fetch_tonights_nba_games(api_key)
-        if games:
-            game_labels = {f"{g['away_team']} @ {g['home_team']}": g for g in games}
-            selected_games = st.sidebar.multiselect(
-                "Tonight's Slate (Prop Scanner)",
-                list(game_labels.keys()),
-                default=list(game_labels.keys())[:3]
-            )
-            if st.sidebar.button("Scan Live Player Props", type="primary", use_container_width=True):
-                slate_data = {}
-                with st.spinner("Pulling live lines & computing matchup edges..."):
-                    for lbl in selected_games:
-                        g_obj = game_labels[lbl]
-                        slate_data[lbl] = fetch_game_player_props(api_key, g_obj["id"], bookmaker)
-                st.session_state["slate_props"] = slate_data
-        else:
-            st.sidebar.info("No upcoming NBA games posted right now.")
+        all_game_labels, slate_props = fetch_full_slate_props(api_key, bookmaker=bookmaker, max_games=6)
+        st.sidebar.success(f"Auto-synced {len(slate_props)} live matchup(s)")
+        if st.sidebar.button("🔄 Refresh Odds Feed", use_container_width=True):
+            fetch_full_slate_props.clear()
+            st.rerun()
     except Exception as e:
         st.sidebar.error(f"Feed Error: {e}")
-
-slate_props = st.session_state.get("slate_props", {})
 
 tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
     "🔥 Top Straight Bets",
@@ -578,30 +585,33 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (Player, Line, Projection, Matchup, Matchup Rating)
+# TAB 1: AUTO-POPULATED TOP STRAIGHT BETS (Sectioned by Prop)
 # =========================================================
 with tab_straight:
     if not slate_props:
-        st.info("Select games in the sidebar and click **Scan Live Player Props** to populate tonight's top straight bets.")
+        st.info("No live NBA player props are currently posted on the board (games may already be in progress or lines haven't opened yet).")
     else:
         edges_df = evaluate_straight_edges(df, slate_props, def_ratings)
         if edges_df.empty:
-            st.warning("No player props posted yet for the selected matchups.")
+            st.warning("Matching player props are still populating from sportsbooks.")
         else:
-            f1, f2, f3 = st.columns([2, 1.5, 1.5])
+            f1, f2 = st.columns([2, 1.5])
             with f1:
-                min_ev = st.slider("Minimum EV %", min_value=-5.0, max_value=15.0, value=1.5, step=0.5)
+                min_ev = st.slider("Minimum Edge / EV %", min_value=-5.0, max_value=15.0, value=1.0, step=0.5)
             with f2:
-                stat_filter = st.multiselect("Stat Type", ["PTS", "REB", "AST", "FG3M"], default=["PTS", "REB", "AST", "FG3M"])
-            with f3:
-                search_player = st.text_input("Search Player", placeholder="e.g. Jokic, Tatum")
+                search_player = st.text_input("Search Player or Team", placeholder="e.g. Jokic, Lakers")
 
-            filtered = edges_df[(edges_df["EV"] >= min_ev) & (edges_df["Stat"].isin(stat_filter))]
+            filtered = edges_df[edges_df["EV"] >= min_ev]
             if search_player.strip():
-                filtered = filtered[filtered["Player"].str.contains(search_player.strip(), case=False, na=False)]
+                q = search_player.strip()
+                filtered = filtered[
+                    filtered["Player"].str.contains(q, case=False, na=False) |
+                    filtered["Matchup"].str.contains(q, case=False, na=False)
+                ]
 
+            # 1. Top 3 Overall Model Plays
             if not filtered.empty:
-                st.markdown("#### Featured Top Plays")
+                st.markdown("#### 🏆 Top 3 Overall Plays Tonight")
                 top_cols = st.columns(3)
                 for idx, (_, row) in enumerate(filtered.head(3).iterrows()):
                     with top_cols[idx]:
@@ -612,29 +622,43 @@ with tab_straight:
                                 <span class="ev-badge">{row['EV']:+.1f}% EV</span>
                             </div>
                             <div class="bet-pick">{row['Line']} ({row['Odds']:+d})</div>
-                            <div class="bet-meta">Projection: <b>{row['Projection']}</b> · Rating: <b>{row['Matchup Rating']}</b></div>
+                            <div class="bet-meta">Projection: <b>{row['Projection']}</b> · {row['Matchup Rating']}</div>
                             <div class="bet-meta" style="margin-top:4px; font-size:0.78rem;">{row['Matchup']}</div>
                         </div>
                         """, unsafe_allow_html=True)
 
-            st.markdown("#### All Top Straight Bets")
+            # 2. Dedicated Section for Each Prop Category
+            prop_sections = [
+                ("PTS", "🏀 Points Props (PTS)"),
+                ("REB", "🧲 Rebounds Props (REB)"),
+                ("AST", "🎯 Assists Props (AST)"),
+                ("FG3M", "💦 3-Pointers Made Props (3PM)"),
+            ]
             display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV", "Units"]
-            st.dataframe(
-                filtered[display_cols],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Player": st.column_config.TextColumn("Player", width="medium"),
-                    "Line": st.column_config.TextColumn("Line", width="medium"),
-                    "Projection": st.column_config.NumberColumn("Projection", format="%.1f"),
-                    "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
-                    "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
-                    "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
-                    "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
-                    "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
-                    "Units": st.column_config.NumberColumn("Rec. Size", format="%.2fu"),
-                }
-            )
+            col_cfg = {
+                "Player": st.column_config.TextColumn("Player", width="medium"),
+                "Line": st.column_config.TextColumn("Line", width="medium"),
+                "Projection": st.column_config.NumberColumn("Projection", format="%.1f"),
+                "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
+                "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
+                "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
+                "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
+                "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
+                "Units": st.column_config.NumberColumn("Rec. Size", format="%.2fu"),
+            }
+
+            for stat_code, section_title in prop_sections:
+                stat_df = filtered[filtered["Stat"] == stat_code]
+                st.markdown(f'<div class="section-header">{section_title} ({len(stat_df)} Plays)</div>', unsafe_allow_html=True)
+                if stat_df.empty:
+                    st.caption(f"No {stat_code} props meeting the {min_ev:+.1f}% EV filter right now.")
+                else:
+                    st.dataframe(
+                        stat_df[display_cols],
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config=col_cfg
+                    )
 
 # =========================================================
 # TAB 2: TONIGHT'S SLATE & CLICK-IN PROJECTED BOX SCORES
@@ -643,8 +667,7 @@ with tab_slate:
     st.markdown("#### Tonight's Projected NBA Scores & Matchup Box Scores")
     st.caption("Every game below is simulated 10,000 times using player rotation baselines and opponent defensive matchup ratings. Click any game to inspect its projected player box score.")
 
-    # Use live slate games if available, otherwise fall back to popular matchups
-    slate_list = list(game_labels.keys()) if game_labels else [
+    slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
         "Boston Celtics @ New York Knicks",
         "Dallas Mavericks @ Oklahoma City Thunder"
@@ -653,7 +676,6 @@ with tab_slate:
     if "selected_box_game" not in st.session_state or st.session_state["selected_box_game"] not in slate_list:
         st.session_state["selected_box_game"] = slate_list[0]
 
-    # Render Game Score Cards in a 3-column grid
     grid_cols = st.columns(3)
     for idx, g_lbl in enumerate(slate_list):
         parts = [t.strip() for t in g_lbl.split("@")]
@@ -686,7 +708,6 @@ with tab_slate:
 
     st.divider()
 
-    # Drill-Down Projected Box Score View
     active_game = st.selectbox(
         "Active Matchup Box Score (Click any game card above or switch here)",
         slate_list,
@@ -737,7 +758,7 @@ with tab_slate:
 # =========================================================
 with tab_parlays:
     if not slate_props:
-        st.info("Click **Scan Live Player Props** in the sidebar to generate cross-game parlays and correlated SGPs.")
+        st.info("Auto-parlays will populate automatically as soon as tonight's player props open on the sportsbook feed.")
     else:
         col_multi, col_sgp = st.columns(2, gap="large")
 
@@ -770,14 +791,14 @@ with tab_parlays:
                                 <span class="ev-badge">{row['Odds']:+d}</span>
                             </div>
                             <div class="bet-pick">{row['Line']}</div>
-                            <div class="bet-meta">Proj: <b>{row['Projection']}</b> · Rating: <b>{row['Matchup Rating']}</b> · EV: <b>{row['EV']:+.1f}%</b></div>
+                            <div class="bet-meta">Proj: <b>{row['Projection']}</b> · {row['Matchup Rating']} · EV: <b>{row['EV']:+.1f}%</b></div>
                         </div>
                         """, unsafe_allow_html=True)
 
                     with st.expander("📋 Copy Parlay Slip"):
                         st.code("\n".join(slip_lines), language=None)
                 else:
-                    st.warning("Select at least 2 games in the sidebar to build a cross-game parlay.")
+                    st.warning("At least 2 active games with props are needed to build a cross-game parlay.")
 
         with col_sgp:
             st.markdown("#### 🔗 Correlated Same-Game Parlays")
