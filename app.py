@@ -1,5 +1,11 @@
 import streamlit as st
-from engine import load_nba_data, price_sgp, scan_matchup_correlations
+from engine import (
+    load_nba_data,
+    price_sgp,
+    scan_matchup_correlations,
+    fetch_tonights_nba_games,
+    fetch_game_player_props,
+)
 
 st.set_page_config(page_title="SGP Fair-Odds Engine", layout="wide")
 st.title("🏀 NBA SGP Correlation & Fair-Odds Pricer")
@@ -8,22 +14,74 @@ st.title("🏀 NBA SGP Correlation & Fair-Odds Pricer")
 def get_data():
     return load_nba_data()
 
+@st.cache_data(ttl=600)
+def cached_games(api_key: str):
+    return fetch_tonights_nba_games(api_key)
+
+@st.cache_data(ttl=300)
+def cached_props(api_key: str, event_id: str, bookmaker: str):
+    return fetch_game_player_props(api_key, event_id, bookmaker)
+
 with st.spinner("Loading multi-season NBA box scores..."):
     df = get_data()
+
+# Auto-load API key from Streamlit Cloud Secrets if configured
+saved_key = ""
+try:
+    saved_key = st.secrets.get("ODDS_API_KEY", "")
+except Exception:
+    saved_key = ""
+
+st.sidebar.header("📡 Live Sportsbook Lines")
+if saved_key:
+    st.sidebar.success("API Key connected via Streamlit Secrets")
+    api_key = saved_key
+else:
+    api_key = st.sidebar.text_input("The Odds API Key", type="password", help="Free key at the-odds-api.com")
+
+bookmaker = st.sidebar.selectbox("Sportsbook", ["draftkings", "fanduel", "betmgm", "caesars"])
+
+live_props = {}
+default_team_a, default_team_b = "Denver Nuggets", "Phoenix Suns"
+
+if api_key:
+    try:
+        games = cached_games(api_key)
+        if games:
+            game_labels = {f"{g['away_team']} @ {g['home_team']}": g for g in games}
+            selected_label = st.sidebar.selectbox("Tonight's NBA Slate", list(game_labels.keys()))
+            selected_game = game_labels[selected_label]
+            default_team_a = selected_game["away_team"]
+            default_team_b = selected_game["home_team"]
+
+            if st.sidebar.button("Pull Live Player Props", type="primary"):
+                st.session_state["live_props"] = cached_props(api_key, selected_game["id"], bookmaker)
+                st.sidebar.success(f"Loaded props for {len(st.session_state['live_props'])} players!")
+            live_props = st.session_state.get("live_props", {})
+        else:
+            st.sidebar.info("No upcoming NBA games posted right now.")
+    except Exception as e:
+        st.sidebar.error(f"API Error: {e}")
 
 teams = sorted(df["TEAM_NAME"].dropna().unique())
 c1, c2 = st.columns(2)
 with c1:
-    team_a = st.selectbox("Team A", teams, index=teams.index("Denver Nuggets") if "Denver Nuggets" in teams else 0)
+    idx_a = teams.index(default_team_a) if default_team_a in teams else 0
+    team_a = st.selectbox("Team A", teams, index=idx_a)
 with c2:
-    team_b = st.selectbox("Team B (Opponent)", teams, index=teams.index("Phoenix Suns") if "Phoenix Suns" in teams else 1)
+    idx_b = teams.index(default_team_b) if default_team_b in teams else 1
+    team_b = st.selectbox("Team B (Opponent)", teams, index=idx_b)
 
 tab_pricer, tab_scanner = st.tabs(["🎯 Fair-Odds & EV Pricer", "🔍 Top Correlation Scanner"])
 
 with tab_pricer:
     matchup_players = sorted(df[df["TEAM_NAME"].isin([team_a, team_b])]["PLAYER_NAME"].dropna().unique())
-    stats = ["PTS", "REB", "AST", "FG3M", "STL", "BLK", "TOV"]
+    if live_props:
+        active_book_players = [p for p in matchup_players if p in live_props]
+        if active_book_players:
+            matchup_players = active_book_players
 
+    stats = ["PTS", "REB", "AST", "FG3M", "STL", "BLK", "TOV"]
     num_legs = st.slider("Number of SGP Legs", min_value=2, max_value=5, value=3)
     legs = []
 
@@ -34,8 +92,18 @@ with tab_pricer:
             p = st.selectbox("Player", matchup_players, index=min(i, len(matchup_players)-1), key=f"p{i}")
             side = st.radio("Side", ["Over", "Under"], horizontal=True, key=f"side{i}")
             s = st.selectbox("Stat", stats, index=2 if i == 0 else 0, key=f"s{i}")
-            o = st.number_input("Selected Side Odds", value=-115, step=5, key=f"o{i}")
-            opp_o = st.number_input("Other Side Odds (0 = auto-est)", value=-105, step=5, key=f"opp{i}")
+
+            prop_info = live_props.get(p, {}).get(s, {})
+            if prop_info:
+                st.info(f"Live {bookmaker.title()} Line: **{prop_info.get('line')}**")
+                default_sel = prop_info.get(side, -115)
+                opp_side = "Under" if side == "Over" else "Over"
+                default_opp = prop_info.get(opp_side, -105)
+            else:
+                default_sel, default_opp = -115, -105
+
+            o = st.number_input("Selected Side Odds", value=int(default_sel), step=5, key=f"o{i}")
+            opp_o = st.number_input("Other Side Odds (0 = auto-est)", value=int(default_opp), step=5, key=f"opp{i}")
             legs.append({"player": p, "side": side, "stat": s, "odds": int(o), "opp_odds": int(opp_o)})
 
     st.divider()
