@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
-from scipy.stats import norm
+from scipy.stats import norm, gamma
 
 # ==========================================
 # BRAND CONFIGURATION
@@ -20,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom Bespoke Dark Theme & Typography
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -37,7 +36,6 @@ st.markdown("""
     section[data-testid="stSidebar"] { display: none; }
     div[data-testid="stDecoration"] { display: none; }
 
-    /* Top Navigation & Brand Bar */
     .brand-bar {
         display: flex;
         justify-content: space-between;
@@ -96,7 +94,6 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* Section Headers */
     .prop-section-title {
         display: flex;
         justify-content: space-between;
@@ -123,18 +120,15 @@ st.markdown("""
         border-radius: 999px;
     }
 
-    /* Bet Cards */
     .pick-card {
         background: #111622;
         border: 1px solid #1E2638;
         border-radius: 11px;
         padding: 1rem 1.15rem;
         margin-bottom: 0.65rem;
-        transition: border-color 0.18s ease, transform 0.18s ease;
+        transition: border-color 0.18s ease;
     }
-    .pick-card:hover {
-        border-color: #2E3A54;
-    }
+    .pick-card:hover { border-color: #2E3A54; }
     .pick-top {
         display: flex;
         justify-content: space-between;
@@ -174,7 +168,6 @@ st.markdown("""
         border-top: 1px solid #1A2234;
     }
 
-    /* Game Scoreboard Cards */
     .matchup-card {
         background: #111622;
         border: 1px solid #1E2638;
@@ -213,7 +206,6 @@ st.markdown("""
         color: #8B97AD;
     }
 
-    /* Footer */
     .site-footer {
         margin-top: 3rem;
         padding-top: 1.25rem;
@@ -236,26 +228,34 @@ def normalize_name(name: str) -> str:
     name = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", name)
     return re.sub(r"\s+", " ", name).strip()
 
-@st.cache_data
-def load_nba_data(seasons=(2024, 2025, 2026)):
+@st.cache_data(ttl=21600)
+def load_nba_data(seasons=(2025, 2026, 2027)):
+    """Loads multi-season box scores including the active 2026-27 season (tagged 2027)."""
     frames = []
     for yr in seasons:
         url = f"https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_player_boxscores/player_box_{yr}.parquet"
         try:
-            frames.append(pd.read_parquet(url))
+            part = pd.read_parquet(url)
+            part["SEASON"] = yr
+            frames.append(part)
         except Exception:
             continue
     df = pd.concat(frames, ignore_index=True)
-    df = df[df["minutes"] >= 12].copy()
+    df = df[df["minutes"] >= 10].copy()
     df["game_id"] = df["game_id"].astype(str)
     if "game_date" in df.columns:
-        df = df.sort_values("game_date")
+        df["GAME_DATE"] = pd.to_datetime(df["game_date"], errors="coerce")
+        df = df.sort_values("GAME_DATE")
+    else:
+        df["GAME_DATE"] = pd.NaT
+
     df = df.drop_duplicates(subset=["game_id", "athlete_display_name"])
     rename_map = {
         "game_id": "GAME_ID",
         "athlete_display_name": "PLAYER_NAME",
         "team_display_name": "TEAM_NAME",
         "opponent_team_display_name": "OPP_NAME",
+        "home_away": "HOME_AWAY",
         "minutes": "MIN",
         "points": "PTS",
         "rebounds": "REB",
@@ -267,18 +267,49 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
     df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
+    df["PRA"] = df["PTS"] + df["REB"] + df["AST"]
     return df
 
-@st.cache_data
-def compute_matchup_ratings(df: pd.DataFrame) -> dict:
+@st.cache_data(ttl=21600)
+def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
+    """Computes recency-weighted opponent defensive allowances, pace factors, and last game date per team."""
+    stats = ["PTS", "REB", "AST", "FG3M", "PRA"]
     if "OPP_NAME" not in df.columns:
-        return {}
-    stats = ["PTS", "REB", "AST", "FG3M"]
-    game_allowed = df.groupby(["OPP_NAME", "GAME_ID"])[stats].sum().reset_index()
-    team_avg = game_allowed.groupby("OPP_NAME")[stats].mean()
-    league_avg = team_avg.mean()
-    multipliers = (team_avg / league_avg).fillna(1.0)
-    return multipliers.to_dict(orient="index")
+        return {"def_mult": {}, "team_pace": {}, "last_game": {}}
+
+    # Weight most recent season heavier for defensive ratings
+    max_season = df["SEASON"].max()
+    recent_df = df[df["SEASON"] >= max_season - 1].copy()
+
+    game_allowed = recent_df.groupby(["OPP_NAME", "GAME_ID", "SEASON"])[stats].sum().reset_index()
+    game_allowed["w"] = np.where(game_allowed["SEASON"] == max_season, 2.0, 1.0)
+
+    def weighted_avg(grp):
+        w = grp["w"].values
+        return pd.Series({s: np.average(grp[s].values, weights=w) for s in stats})
+
+    team_allowed = game_allowed.groupby("OPP_NAME").apply(weighted_avg, include_groups=False)
+    league_avg = team_allowed.mean()
+    def_mult = (team_allowed / league_avg).fillna(1.0).to_dict(orient="index")
+
+    # Team offensive pace proxy (points scored + allowed vs league average)
+    game_scored = recent_df.groupby(["TEAM_NAME", "GAME_ID", "SEASON"])["PTS"].sum().reset_index()
+    game_scored["w"] = np.where(game_scored["SEASON"] == max_season, 2.0, 1.0)
+    team_scored = game_scored.groupby("TEAM_NAME").apply(
+        lambda g: np.average(g["PTS"].values, weights=g["w"].values), include_groups=False
+    )
+    team_pace = {}
+    lg_pts = float(league_avg["PTS"])
+    for team in team_scored.index:
+        off_factor = float(team_scored[team]) / lg_pts
+        def_factor = def_mult.get(team, {}).get("PTS", 1.0)
+        team_pace[team] = 0.5 * (off_factor + def_factor)
+
+    last_game = {}
+    if df["GAME_DATE"].notna().any():
+        last_game = df.dropna(subset=["GAME_DATE"]).groupby("TEAM_NAME")["GAME_DATE"].max().to_dict()
+
+    return {"def_mult": def_mult, "team_pace": team_pace, "last_game": last_game}
 
 def format_matchup_rating(mult: float) -> str:
     score = round(mult * 100, 1)
@@ -294,20 +325,50 @@ def format_matchup_rating(mult: float) -> str:
     return f"{score} · Neutral ({diff:+.1f}%)"
 
 @st.cache_data(ttl=1800)
-def fetch_full_slate_props(api_key: str, bookmaker: str = "draftkings", max_games: int = 6):
-    events_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/events"
-    ev_res = requests.get(events_url, params={"apiKey": api_key}, timeout=10)
-    ev_res.raise_for_status()
-    games = ev_res.json()
+def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games: int = 6):
+    """Fetches live game spreads/totals AND player props for tonight's slate."""
+    odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
+    game_res = requests.get(
+        odds_url,
+        params={
+            "apiKey": api_key,
+            "regions": "us",
+            "markets": "spreads,totals",
+            "oddsFormat": "american",
+            "bookmakers": bookmaker
+        },
+        timeout=10
+    )
+    game_res.raise_for_status()
+    games = game_res.json()
+
+    game_lines = {}
+    all_game_labels = []
+    for g in games:
+        lbl = f"{g['away_team']} @ {g['home_team']}"
+        all_game_labels.append(lbl)
+        spread_home = 0.0
+        total_line = 228.0
+        for b in g.get("bookmakers", []):
+            for m in b.get("markets", []):
+                if m["key"] == "spreads":
+                    for o in m.get("outcomes", []):
+                        if o.get("name") == g["home_team"] and o.get("point") is not None:
+                            spread_home = float(o["point"])
+                elif m["key"] == "totals":
+                    for o in m.get("outcomes", []):
+                        if o.get("name") == "Over" and o.get("point") is not None:
+                            total_line = float(o["point"])
+        game_lines[lbl] = {"spread_home": spread_home, "total": total_line, "id": g["id"]}
 
     market_map = {
         "player_points": "PTS",
         "player_rebounds": "REB",
         "player_assists": "AST",
         "player_threes": "FG3M",
+        "player_points_rebounds_assists": "PRA",
     }
     slate_props = {}
-    all_game_labels = [f"{g['away_team']} @ {g['home_team']}" for g in games]
 
     for g in games[:max_games]:
         lbl = f"{g['away_team']} @ {g['home_team']}"
@@ -347,7 +408,7 @@ def fetch_full_slate_props(api_key: str, bookmaker: str = "draftkings", max_game
             slate_props[lbl] = props
 
     fetched_at = datetime.now().strftime("%I:%M %p")
-    return all_game_labels, slate_props, fetched_at
+    return all_game_labels, game_lines, slate_props, fetched_at
 
 def american_to_prob(odds: int) -> float:
     return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
@@ -366,19 +427,56 @@ def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
         return p_sel / (p_sel + p_opp)
     return p_sel * 0.955
 
-def quarter_kelly_units(win_prob: float, dec_odds: float) -> float:
-    b = dec_odds - 1.0
-    if b <= 0:
-        return 0.0
-    full_kelly = (win_prob * (b + 1.0) - 1.0) / b
-    return round(max(full_kelly * 0.25 * 100, 0.0), 2)
+def exp_weighted_mean(values: np.ndarray, decay: float = 0.94) -> float:
+    n = len(values)
+    weights = decay ** np.arange(n - 1, -1, -1)
+    return float(np.sum(values * weights) / np.sum(weights))
 
-def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: dict) -> pd.DataFrame:
+def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.94) -> float:
+    n = len(values)
+    weights = decay ** np.arange(n - 1, -1, -1)
+    var = np.sum(weights * (values - mean_val) ** 2) / np.sum(weights)
+    return float(np.sqrt(max(var, 0.65)))
+
+def skewed_prob_over(line: float, proj_mean: float, proj_std: float, stat: str, emp_series: pd.Series) -> float:
+    """Blends empirical recency hit rate with a right-skewed Gamma distribution for discrete NBA stats."""
+    emp_recent = (emp_series.tail(15) > line).mean()
+    emp_season = (emp_series.tail(40) > line).mean()
+    emp_blend = 0.65 * emp_recent + 0.35 * emp_season
+
+    if proj_mean <= 0.1:
+        return 0.01
+
+    # Gamma distribution captures positive skewness of NBA counting stats (3PM, AST, REB, PTS)
+    variance = max(proj_std ** 2, proj_mean * 1.05)
+    shape_k = (proj_mean ** 2) / variance
+    scale_theta = variance / proj_mean
+    dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
+
+    # Give higher weight to parametric Gamma distribution as sample size grows
+    w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
+    return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
+
+def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict) -> pd.DataFrame:
+    """Multi-factor projection engine: Per-Min Rate x Proj Min x Opp Def x Vegas Pace x Home/Away x Rest/Blowout."""
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
+    def_mults_all = team_metrics["def_mult"]
+    last_games = team_metrics["last_game"]
+    today_ts = pd.Timestamp.now().normalize()
 
     for game_label, game_props in slate_props.items():
         teams_in_game = [t.strip() for t in game_label.split("@")]
+        if len(teams_in_game) != 2:
+            continue
+        away_team, home_team = teams_in_game[0], teams_in_game[1]
+        g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": 228.0})
+        vegas_total = g_line_info["total"]
+        abs_spread = abs(g_line_info["spread_home"])
+
+        # Vegas game total environment multiplier relative to 228.0 baseline
+        vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
+
         for norm_p, p_data in game_props.items():
             if norm_p not in grouped:
                 continue
@@ -387,27 +485,49 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
                 continue
 
             player_team = p_df["TEAM_NAME"].iloc[-1]
-            opp_team = next((t for t in teams_in_game if t != player_team), "")
-            opp_mults = def_ratings.get(opp_team, {})
+            is_home = (player_team == home_team)
+            opp_team = away_team if is_home else home_team
+            opp_mults = def_mults_all.get(opp_team, {})
+
+            # 1. Project Minutes (Exponentially weighted recent minutes + blowout & B2B adjustments)
+            min_vals = p_df["MIN"].dropna().tail(30).values
+            proj_min = exp_weighted_mean(min_vals, decay=0.90)
+
+            # Blowout risk trim: heavy favorites/underdogs (>11.5 spread) see ~4% starter minutes trim
+            if abs_spread >= 11.5 and proj_min >= 28.0:
+                proj_min *= 0.96
+
+            # Back-to-back fatigue check
+            b2b_mult = 1.0
+            if player_team in last_games:
+                days_rest = (today_ts - last_games[player_team]).days
+                if days_rest == 1:
+                    b2b_mult = 0.975  # ~2.5% efficiency drop on 0 days rest
+
+            # Home / Away split factor
+            loc_mult = 1.012 if is_home else 0.988
 
             for stat, info in p_data["stats"].items():
                 if stat not in p_df.columns or "Over" not in info or "Under" not in info:
                     continue
                 line = info["line"]
-                series = p_df[stat].dropna()
-                if len(series) < 12:
+                valid_df = p_df[["MIN", stat]].dropna().tail(50)
+                if len(valid_df) < 12:
                     continue
 
-                recent = series.tail(10)
-                base_proj = 0.60 * recent.mean() + 0.40 * series.mean()
-                raw_mult = opp_mults.get(stat, 1.0)
-                adj_mult = 1.0 + 0.50 * (raw_mult - 1.0)
-                proj = base_proj * adj_mult
-                std = max(series.std(), 1.25)
+                # 2. Per-Minute Production Rate (exponentially weighted)
+                per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
+                exp_rate = exp_weighted_mean(per_min_rates, decay=0.94)
+                base_proj = exp_rate * proj_min
 
-                emp_over = (series.tail(15) > line).mean()
-                norm_over = 1 - norm.cdf(line, loc=proj, scale=std)
-                model_over = 0.45 * emp_over + 0.55 * norm_over
+                # 3. Opponent Defensive Rating + Vegas Game Pace + Location + B2B
+                raw_def = opp_mults.get(stat, 1.0)
+                damp_def = 1.0 + 0.55 * (raw_def - 1.0)
+                total_env_mult = damp_def * vegas_pace_mult * loc_mult * b2b_mult
+                proj = base_proj * total_env_mult
+
+                std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
+                model_over = skewed_prob_over(line, proj, std, stat, valid_df[stat])
                 model_under = 1.0 - model_over
 
                 nv_over = get_no_vig_prob(info["Over"], info["Under"])
@@ -420,8 +540,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
                     dec = american_to_decimal(odds)
                     ev_pct = (mod_p * dec - 1) * 100
                     edge_pct = (mod_p - nv_p) * 100
-                    units = quarter_kelly_units(mod_p, dec)
-                    rating_mult = adj_mult if side == "Over" else (2.0 - adj_mult)
+                    rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
+
                     rows.append({
                         "Player": p_data["display_name"],
                         "NORM_NAME": norm_p,
@@ -435,7 +555,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
                         "Win Prob": round(float(mod_p * 100), 1),
                         "Edge": round(float(edge_pct), 1),
                         "EV": round(float(ev_pct), 1),
-                        "Units": round(float(units), 2),
                     })
 
     if not rows:
@@ -443,7 +562,13 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
     return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
-def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_ratings: dict, n_sims: int = 10000):
+def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, n_sims: int = 15000):
+    def_mults_all = team_metrics["def_mult"]
+    last_games = team_metrics["last_game"]
+    today_ts = pd.Timestamp.now().normalize()
+    vegas_total = game_line.get("total", 228.0)
+    vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
+
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
         if t_df.empty:
@@ -464,20 +589,21 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
             rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:9]
 
         sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
-        opp_mults = def_ratings.get(opp, {})
-        home_factor = 1.015 if is_home else 0.985
+        opp_mults = def_mults_all.get(opp, {})
+        loc_mult = 1.012 if is_home else 0.988
+        b2b_mult = 0.975 if (team in last_games and (today_ts - last_games[team]).days == 1) else 1.0
 
         player_params = []
         for p in rot_players:
-            p_sub = sub[sub["PLAYER_NAME"] == p]
-            rec = p_sub.tail(10)
-            mins = float(rec["MIN"].mean())
+            p_sub = sub[sub["PLAYER_NAME"] == p].tail(35)
+            mins = exp_weighted_mean(p_sub["MIN"].values, decay=0.90)
             stats_proj = {}
             for st_col in ["PTS", "REB", "AST", "FG3M"]:
-                base = 0.65 * rec[st_col].mean() + 0.35 * p_sub[st_col].mean()
-                mult = 1.0 + 0.50 * (opp_mults.get(st_col, 1.0) - 1.0)
-                mean_val = float(base * mult * (home_factor if st_col == "PTS" else 1.0))
-                std_val = float(max(p_sub[st_col].std(), 0.8))
+                rates = (p_sub[st_col] / p_sub["MIN"]).values
+                base = exp_weighted_mean(rates, decay=0.94) * mins
+                mult = (1.0 + 0.55 * (opp_mults.get(st_col, 1.0) - 1.0)) * vegas_pace_mult * loc_mult * b2b_mult
+                mean_val = float(base * mult)
+                std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.94)
                 stats_proj[st_col] = (mean_val, std_val)
             player_params.append({"player": p, "min": mins, "stats": stats_proj})
 
@@ -493,21 +619,25 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
 
         rng = np.random.default_rng(42)
         z = rng.multivariate_normal(np.zeros(len(rot_players)), corr_psd, size=n_sims)
+        u = norm.cdf(z)
         sim_pts_matrix = np.zeros((n_sims, len(rot_players)))
         box_rows = []
 
         for idx, p_info in enumerate(player_params):
             pts_m, pts_s = p_info["stats"]["PTS"]
-            sim_p = np.clip(pts_m + z[:, idx] * pts_s, 0, None)
+            var_p = max(pts_s ** 2, pts_m * 1.05)
+            sim_p = gamma.ppf(np.clip(u[:, idx], 0.001, 0.999), a=(pts_m ** 2) / var_p, scale=var_p / max(pts_m, 0.1))
             sim_pts_matrix[:, idx] = sim_p
 
-            reb_m, reb_s = p_info["stats"]["REB"]
-            ast_m, ast_s = p_info["stats"]["AST"]
-            fg3_m, fg3_s = p_info["stats"]["FG3M"]
+            def sim_gamma_stat(m_val, s_val):
+                if m_val <= 0.1:
+                    return np.zeros(n_sims)
+                v = max(s_val ** 2, m_val * 1.05)
+                return rng.gamma(shape=(m_val ** 2) / v, scale=v / m_val, size=n_sims)
 
-            sim_r = np.clip(rng.normal(reb_m, reb_s, size=n_sims), 0, None)
-            sim_a = np.clip(rng.normal(ast_m, ast_s, size=n_sims), 0, None)
-            sim_3 = np.clip(rng.normal(fg3_m, fg3_s, size=n_sims), 0, None)
+            sim_r = sim_gamma_stat(*p_info["stats"]["REB"])
+            sim_a = sim_gamma_stat(*p_info["stats"]["AST"])
+            sim_3 = sim_gamma_stat(*p_info["stats"]["FG3M"])
 
             box_rows.append({
                 "Player": p_info["player"],
@@ -652,9 +782,9 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Load core dataset & matchup ratings
+# Load multi-season database & compute advanced team metrics
 df = load_nba_data()
-def_ratings = compute_matchup_ratings(df)
+team_metrics = compute_advanced_team_metrics(df)
 
 saved_key = ""
 try:
@@ -676,7 +806,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Inline Top Control Strip (No Sidebar Needed)
+# Inline Control Strip
 ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1.8, 1.8, 0.8], vertical_alignment="bottom")
 with ctrl_c1:
     bookmaker = st.selectbox(
@@ -690,23 +820,24 @@ with ctrl_c3:
     search_player = st.text_input("Filter by Player or Team", placeholder="Search player or matchup...")
 with ctrl_c4:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
-        fetch_full_slate_props.clear()
+        fetch_full_slate_data.clear()
         st.rerun()
 
 if not saved_key:
     saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
 
 all_game_labels = []
+game_lines = {}
 slate_props = {}
 fetched_at = "Just now"
 
 if saved_key:
     try:
-        all_game_labels, slate_props, fetched_at = fetch_full_slate_props(saved_key, bookmaker=bookmaker, max_games=6)
+        all_game_labels, game_lines, slate_props, fetched_at = fetch_full_slate_data(saved_key, bookmaker=bookmaker, max_games=6)
     except Exception as e:
         st.error(f"Live odds feed unavailable: {e}")
 
-edges_df = evaluate_straight_edges(df, slate_props, def_ratings) if slate_props else pd.DataFrame()
+edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics) if slate_props else pd.DataFrame()
 filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
 
 if not filtered.empty and search_player.strip():
@@ -726,7 +857,7 @@ kpi4.metric("Last Board Sync", fetched_at)
 
 st.write("")
 
-# Clean Material-Icon Tabs
+# Navigation Tabs
 tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
     ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Tonight's Slate & Box Scores",
@@ -758,7 +889,7 @@ with tab_straight:
                         Projection: <b>{row['Projection']}</b> · Win Prob: <b>{row['Win Prob']}%</b><br>
                         Matchup Rating: <b>{row['Matchup Rating']}</b>
                     </div>
-                    <div class="pick-matchup">{row['Matchup']} · Rec. Size: {row['Units']:.2f}u</div>
+                    <div class="pick-matchup">{row['Matchup']}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -767,8 +898,9 @@ with tab_straight:
             ("REB", "Rebounds Props (REB)"),
             ("AST", "Assists Props (AST)"),
             ("FG3M", "3-Pointers Made Props (3PM)"),
+            ("PRA", "Points + Rebounds + Assists (PRA)"),
         ]
-        display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV", "Units"]
+        display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV"]
         col_cfg = {
             "Player": st.column_config.TextColumn("Player", width="medium"),
             "Line": st.column_config.TextColumn("Line", width="medium"),
@@ -778,7 +910,6 @@ with tab_straight:
             "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
             "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
             "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
-            "Units": st.column_config.NumberColumn("Rec. Size", format="%.2fu"),
         }
 
         for stat_code, section_title in prop_sections:
@@ -804,7 +935,7 @@ with tab_straight:
 # =========================================================
 with tab_slate:
     st.markdown("##### Tonight's Projected NBA Scores")
-    st.caption("Simulated 10,000 times using player rotation baselines and opponent defensive matchup ratings. Select any matchup to inspect its projected player box score.")
+    st.caption("Simulated 15,000 times using per-minute rate models, opponent defensive ratings, Vegas pace environments, and rest/location splits.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
@@ -821,7 +952,8 @@ with tab_slate:
         if len(parts) != 2:
             continue
         away_t, home_t = parts[0], parts[1]
-        sim_res = simulate_full_game(df, away_t, home_t, def_ratings, n_sims=10000)
+        g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0})
+        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, n_sims=15000)
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
         spread_num = abs(sim_res["proj_spread"])
 
@@ -855,7 +987,7 @@ with tab_slate:
     st.session_state["selected_box_game"] = active_game
 
     away_sel, home_sel = [t.strip() for t in active_game.split("@")]
-    detail_sim = simulate_full_game(df, away_sel, home_sel, def_ratings, n_sims=10000)
+    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, game_lines.get(active_game, {"spread_home": 0.0, "total": 228.0}), n_sims=15000)
 
     st.markdown(f"##### Projected Box Score: {away_sel} ({detail_sim['away_score']}) @ {home_sel} ({detail_sim['home_score']})")
     box_c1, box_c2 = st.columns(2, gap="large")
@@ -895,12 +1027,10 @@ with tab_parlays:
                     comb_mod_p = float(np.prod(best_per_game["Win Prob"] / 100.0))
                     parlay_ev = (comb_mod_p * comb_dec - 1) * 100
                     parlay_odds = round((comb_dec - 1) * 100) if comb_dec >= 2.0 else round(-100 / (comb_dec - 1))
-                    parlay_units = quarter_kelly_units(comb_mod_p, comb_dec)
 
-                    m1, m2, m3 = st.columns(3)
+                    m1, m2 = st.columns(2)
                     m1.metric("Combined Odds", f"{parlay_odds:+d}")
                     m2.metric("Parlay EV", f"{parlay_ev:+.1f}%")
-                    m3.metric("Rec. Size", f"{parlay_units:.2f}u")
 
                     slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg +EV Parlay | {parlay_odds:+d})"]
                     for _, row in best_per_game.iterrows():
