@@ -165,6 +165,25 @@ a.player-link:hover .headshot-img {
     border-radius: 4px;
     flex-shrink: 0;
 }
+.inj-q-pill {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #FBBF24;
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 1px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.inj-out-pill {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #F87171;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(239, 68, 68, 0.38);
+    padding: 2px 7px;
+    border-radius: 4px;
+}
 
 .board-card {
     background: #111622;
@@ -305,6 +324,17 @@ table.prop-table tr:hover td { background: #161E30; }
     margin-bottom: 1.25rem;
 }
 
+.inj-strip {
+    background: #111622;
+    border: 1px solid #1E2638;
+    border-left: 3px solid #EF4444;
+    border-radius: 9px;
+    padding: 0.65rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.81rem;
+    color: #CBD5E1;
+}
+
 .heatmap-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -384,7 +414,6 @@ POS_FULL_PLURAL = {
 DEFAULT_HEADSHOT = "https://a.espncdn.com/combiner/i?img=/i/headshots/nophoto.png&w=96&h=70"
 
 def map_position_group(raw_pos: str) -> str:
-    """Maps raw ESPN position abbreviations (PG, SG, G, SF, PF, F, C) to Guard (G), Forward (F), or Center (C)."""
     p = str(raw_pos).strip().upper()
     if p in ("C", "CENTER"):
         return "C"
@@ -409,23 +438,6 @@ def build_headshot_url(athlete_id, href: str = "") -> str:
             pass
     return DEFAULT_HEADSHOT
 
-def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", book: str = "draftkings", from_game: str = "") -> str:
-    """Renders a clickable player headshot + name link that opens their Scouting Profile in the SAME tab."""
-    href = f"?player={quote_plus(player_name)}&book={book}"
-    if from_game:
-        href += f"&game={quote_plus(from_game)}"
-    pos_html = f'<span class="pos-pill">{pos_label}</span>' if pos_label else ""
-    return (
-        f'<a class="player-link" href="{href}" target="_self" title="Open {player_name} Scouting Profile">'
-        f'<div class="headshot-wrap">'
-        f'<img class="headshot-img" src="{headshot_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" />'
-        f'<img class="team-mini-logo" src="{team_logo_url}" />'
-        f'</div>'
-        f'<span class="player-name-txt">{player_name}</span>'
-        f'{pos_html}'
-        f'</a>'
-    )
-
 def normalize_name(name: str) -> str:
     if not isinstance(name, str):
         return ""
@@ -445,9 +457,63 @@ def ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
 
+def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", book: str = "draftkings", from_game: str = "", inj_status: str = "") -> str:
+    href = f"?player={quote_plus(player_name)}&book={book}"
+    if from_game:
+        href += f"&game={quote_plus(from_game)}"
+    pos_html = f'<span class="pos-pill">{pos_label}</span>' if pos_label else ""
+    inj_html = ""
+    if inj_status and any(k in inj_status.lower() for k in ("questionable", "day-to-day", "probable", "gtd")):
+        inj_html = '<span class="inj-q-pill">GTD</span>'
+    return (
+        f'<a class="player-link" href="{href}" target="_self" title="Open {player_name} Scouting Profile">'
+        f'<div class="headshot-wrap">'
+        f'<img class="headshot-img" src="{headshot_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" />'
+        f'<img class="team-mini-logo" src="{team_logo_url}" />'
+        f'</div>'
+        f'<span class="player-name-txt">{player_name}</span>'
+        f'{pos_html}{inj_html}'
+        f'</a>'
+    )
+
 @st.cache_resource
 def get_daily_pregame_vault() -> dict:
     return {}
+
+@st.cache_data(ttl=900)
+def fetch_nba_injury_report() -> tuple[dict, dict]:
+    """Fetches live NBA injury report from ESPN's public injuries endpoint.
+    Returns (player_injuries: {norm_name: {status, detail, team}}, team_out_lists: {team_name: [display_str]})."""
+    player_injuries = {}
+    team_out_lists = {}
+    try:
+        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
+        data = requests.get(url, timeout=8).json()
+        for team_blk in data.get("injuries", []):
+            raw_team = team_blk.get("displayName", "")
+            team_name = ESPN_TO_ODDS_TEAM.get(raw_team, raw_team)
+            for item in team_blk.get("injuries", []):
+                ath = item.get("athlete", {})
+                p_name = ath.get("displayName", "")
+                status = str(item.get("status", "")).strip()
+                short_comment = str(item.get("shortComment", "")).strip()
+                if not p_name or not status:
+                    continue
+                norm_p = normalize_name(p_name)
+                st_low = status.lower()
+                is_out = any(k in st_low for k in ("out", "suspension", "suspended", "doubtful", "inactive"))
+                player_injuries[norm_p] = {
+                    "name": p_name,
+                    "status": status,
+                    "detail": short_comment,
+                    "team": team_name,
+                    "is_out": is_out,
+                }
+                if is_out and team_name:
+                    team_out_lists.setdefault(team_name, []).append(f"{p_name} ({status})")
+    except Exception:
+        pass
+    return player_injuries, team_out_lists
 
 @st.cache_data(ttl=21600)
 def load_nba_data(seasons=(2025, 2026, 2027)):
@@ -500,7 +566,6 @@ def load_nba_data(seasons=(2025, 2026, 2027)):
         if col not in df.columns:
             df[col] = ""
 
-    # Backfill missing position per player from their most recent non-empty game entry
     valid_pos = df[df["RAW_POS"].astype(str).str.strip() != ""].drop_duplicates(subset=["PLAYER_NAME"], keep="last")
     pos_map = dict(zip(valid_pos["PLAYER_NAME"], valid_pos["RAW_POS"]))
     df["RAW_POS"] = df["PLAYER_NAME"].map(pos_map).fillna(df["RAW_POS"]).fillna("F")
@@ -533,7 +598,6 @@ def build_player_media_lookup(df: pd.DataFrame) -> dict:
 
 @st.cache_data(ttl=21600)
 def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
-    """Computes Defense vs. Position (DvP: G, F, C) multipliers, league rankings (1-30), and per-game averages."""
     stats = ["PTS", "REB", "AST", "FG3M", "PRA"]
     if "OPP_NAME" not in df.columns:
         return {"dvp_mult": {}, "dvp_ranks": {}, "dvp_avg": {}, "last_game": {}}
@@ -541,7 +605,6 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
     max_season = df["SEASON"].max()
     recent_df = df[df["SEASON"] >= max_season - 1].copy()
 
-    # Sum stats allowed per (Opponent Team, Game, Position Group)
     pos_game_allowed = recent_df.groupby(["OPP_NAME", "POS_GROUP", "GAME_ID", "SEASON"])[stats].sum().reset_index()
     pos_game_allowed["w"] = np.where(pos_game_allowed["SEASON"] == max_season, 2.0, 1.0)
 
@@ -567,7 +630,6 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
             dvp_avg.setdefault(team_name, {})[pos_g] = sub_pos.loc[team_name].round(1).to_dict()
 
         for s in stats:
-            # Rank 1 = Toughest vs position (allows fewest), Rank 30 = Softest vs position (allows most)
             ranked = sub_pos[s].rank(ascending=True, method="min").astype(int)
             for team_name, rk in ranked.items():
                 dvp_ranks.setdefault(team_name, {}).setdefault(pos_g, {})[s] = int(rk)
@@ -737,7 +799,6 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
 
 @st.cache_data(ttl=600)
 def fetch_and_lock_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: int = 12):
-    """Pulls the FULL official daily NBA schedule from ESPN and locks pre-game props in the daily vault."""
     et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(et_tz)
@@ -953,13 +1014,22 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series:
     w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
-def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict) -> pd.DataFrame:
-    """Projects player props using Defense vs. Position (DvP) multipliers specific to Guard/Forward/Center."""
+def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict) -> pd.DataFrame:
+    """Projects player props using DvP multipliers, filtering out ruled-out players and applying usage boost when teammates are out."""
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     dvp_mults_all = team_metrics["dvp_mult"]
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
+
+    # Calculate usage bump per team when high-minute teammates are ruled OUT
+    team_usage_bump = {}
+    for norm_inj, inj_info in injury_map.items():
+        if inj_info.get("is_out") and norm_inj in grouped:
+            inj_mins = grouped[norm_inj]["MIN"].tail(15).mean()
+            if inj_mins >= 24.0:
+                tm = inj_info.get("team", "")
+                team_usage_bump[tm] = min(1.06, team_usage_bump.get(tm, 1.0) + 0.025)
 
     for game_label, game_props in slate_props.items():
         teams_in_game = [t.strip() for t in game_label.split("@")]
@@ -973,6 +1043,11 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
 
         for norm_p, p_data in game_props.items():
+            # Skip players officially ruled OUT / Suspended / Doubtful
+            inj_rec = injury_map.get(norm_p, {})
+            if inj_rec.get("is_out"):
+                continue
+
             if norm_p not in grouped:
                 continue
             p_df = grouped[norm_p]
@@ -989,7 +1064,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             headshot_url = p_media.get("headshot", DEFAULT_HEADSHOT)
             team_logo_url = get_team_logo(player_team)
 
-            # Position-specific opponent defensive multiplier (DvP)
             opp_pos_mults = dvp_mults_all.get(opp_team, {}).get(pos_group, {})
 
             min_vals = p_df["MIN"].dropna().tail(30).values
@@ -1005,6 +1079,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     b2b_mult = 0.975
 
             loc_mult = 1.012 if is_home else 0.988
+            usage_mult = team_usage_bump.get(player_team, 1.0)
 
             for stat, info in p_data["stats"].items():
                 if stat not in p_df.columns or "Over" not in info or "Under" not in info:
@@ -1020,7 +1095,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
                 raw_dvp = opp_pos_mults.get(stat, 1.0)
                 damp_dvp = 1.0 + 0.55 * (raw_dvp - 1.0)
-                total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult
+                total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult
                 proj = base_proj * total_env_mult
 
                 std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
@@ -1045,6 +1120,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         "NORM_NAME": norm_p,
                         "Pos": raw_pos,
                         "PosGroup": pos_group,
+                        "InjStatus": inj_rec.get("status", ""),
                         "Headshot": headshot_url,
                         "TeamLogo": team_logo_url,
                         "Line": f"{side} {line} {stat}",
@@ -1068,13 +1144,14 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
     return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
-def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, n_sims: int = 15000):
+def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, out_players_key: tuple = (), n_sims: int = 15000):
     dvp_mults_all = team_metrics["dvp_mult"]
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
     vegas_total = game_line.get("total", 228.0)
     vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
     max_season = df["SEASON"].max()
+    out_set = set(out_players_key)
 
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
@@ -1083,6 +1160,8 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
 
         curr_season_df = t_df[t_df["SEASON"] == max_season]
         active_pool = curr_season_df if not curr_season_df.empty else t_df
+        # Exclude players ruled OUT on the injury report
+        active_pool = active_pool[~active_pool["NORM_NAME"].isin(out_set)]
 
         recent_games = active_pool["GAME_ID"].drop_duplicates().tail(10)
         recent_df = active_pool[active_pool["GAME_ID"].isin(recent_games)]
@@ -1102,15 +1181,20 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         loc_mult = 1.012 if is_home else 0.988
         b2b_mult = 0.975 if (team in last_games and (today_ts - last_games[team]).days == 1) else 1.0
 
+        # Scale rotation minutes up proportionally so total team minutes equal 240 when starters are OUT
+        raw_mins = [exp_weighted_mean(sub[sub["PLAYER_NAME"] == p].tail(35)["MIN"].values, decay=0.90) for p in rot_players]
+        total_raw_m = sum(raw_mins)
+        min_scale = min(1.12, max(1.0, 236.0 / total_raw_m)) if total_raw_m > 0 else 1.0
+
         player_params = []
-        for p in rot_players:
+        for p, raw_m in zip(rot_players, raw_mins):
             p_sub = sub[sub["PLAYER_NAME"] == p].tail(35)
             norm_p = normalize_name(p)
             p_media = media_lookup.get(norm_p, {})
             pos_g = p_media.get("pos_group", p_sub["POS_GROUP"].iloc[-1])
             opp_pos_mults = dvp_mults_all.get(opp, {}).get(pos_g, {})
 
-            mins = exp_weighted_mean(p_sub["MIN"].values, decay=0.90)
+            mins = min(40.0, raw_m * min_scale)
             stats_proj = {}
             for st_col in ["PTS", "REB", "AST", "FG3M"]:
                 rates = (p_sub[st_col] / p_sub["MIN"]).values
@@ -1195,8 +1279,11 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         "home_box": home_box,
     }
 
-def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, min_games: int = 15) -> pd.DataFrame:
-    active_norms = [np_name for np_name in game_props.keys() if np_name in set(df["NORM_NAME"])]
+def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_map: dict, min_games: int = 15) -> pd.DataFrame:
+    active_norms = [
+        np_name for np_name in game_props.keys()
+        if np_name in set(df["NORM_NAME"]) and not injury_map.get(np_name, {}).get("is_out")
+    ]
     sub = df[df["NORM_NAME"].isin(active_norms)].copy()
     if sub.empty:
         return pd.DataFrame()
@@ -1302,7 +1389,7 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Zero-Indentation HTML Renderers (Clickable Headshot & Name -> Same-Tab Player Profile)
+# Zero-Indentation HTML Renderers
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, book: str = "draftkings", from_game: str = ""):
     if source_df.empty:
         st.markdown(
@@ -1317,7 +1404,10 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
     for _, r in source_df.iterrows():
         ev_val = r["EV"]
         ev_html = f'<span class="ev-pos">{ev_val:+.1f}%</span>' if ev_val > 0 else f'<span class="ev-neg">{ev_val:+.1f}%</span>'
-        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), book=book, from_game=from_game)
+        p_cell = player_badge_html(
+            r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""),
+            book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
+        )
         rows_html.append(
             f'<tr>'
             f'<td style="width:24%;">{p_cell}</td>'
@@ -1350,11 +1440,13 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
-def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame, book: str = "draftkings", from_game: str = ""):
+def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame, injury_map: dict, book: str = "draftkings", from_game: str = ""):
     t_logo = get_team_logo(team_name)
     rows_html = []
     for _, r in box_df.iterrows():
-        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), book=book, from_game=from_game)
+        norm_p = normalize_name(r["Player"])
+        inj_st = injury_map.get(norm_p, {}).get("status", "")
+        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), book=book, from_game=from_game, inj_status=inj_st)
         rows_html.append(
             f'<tr>'
             f'<td style="width:38%;">{p_cell}</td>'
@@ -1372,7 +1464,7 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
         f'<div class="board-header"><span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span><span class="board-count">Win Prob: {win_prob:.1f}%</span></div>'
         f'<table class="prop-table">'
         f'<thead><tr>'
-        f'<th style="width:38%;">Player (Click to Scout)</th>'
+        f'<th style="width:38%;">Active Rotation (Click to Scout)</th>'
         f'<th style="width:10%;" class="col-right">MIN</th>'
         f'<th style="width:10%;" class="col-right">PTS</th>'
         f'<th style="width:10%;" class="col-right">REB</th>'
@@ -1399,8 +1491,10 @@ if qp_player:
 if qp_game:
     st.session_state["active_game_page"] = qp_game
 
-# Load multi-season database, media lookup & compute position-specific DvP metrics
+# Load multi-season database, live injury report, media lookup & position-specific DvP metrics
 df = load_nba_data()
+injury_map, team_out_lists = fetch_nba_injury_report()
+out_players_tuple = tuple(sorted([k for k, v in injury_map.items() if v.get("is_out")]))
 media_lookup = build_player_media_lookup(df)
 team_metrics = compute_advanced_team_metrics(df)
 
@@ -1414,7 +1508,7 @@ except Exception:
 st.markdown(
     f'<div class="brand-bar"><div class="brand-left"><div class="brand-logo">HP</div>'
     f'<div><p class="brand-name">{BRAND_NAME}</p><p class="brand-sub">{BRAND_SUBTITLE}</p></div></div>'
-    f'<span class="status-badge"><span class="status-dot"></span> POSITION-MATCHED DvP PROJECTIONS</span></div>',
+    f'<span class="status-badge"><span class="status-dot"></span> INJURY-ADJUSTED DvP ENGINE</span></div>',
     unsafe_allow_html=True
 )
 
@@ -1435,9 +1529,8 @@ if saved_key:
     except Exception as e:
         st.error(f"Live odds feed unavailable: {e}")
 
-edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup) if slate_props else pd.DataFrame()
+edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup, injury_map) if slate_props else pd.DataFrame()
 
-# Map every team to today's scheduled opponent
 team_today_opp = {}
 for g_lbl in all_game_labels:
     pts_g = [t.strip() for t in g_lbl.split("@")]
@@ -1474,6 +1567,7 @@ if scout_player:
     pos_group = p_media.get("pos_group", p_hist["POS_GROUP"].iloc[-1])
     raw_pos = p_media.get("raw_pos", pos_group)
     pos_plural = POS_FULL_PLURAL.get(pos_group, "Players")
+    p_inj = injury_map.get(norm_scout, {})
 
     if p_team in team_today_opp:
         opp_team, loc_label, matchup_lbl = team_today_opp[p_team]
@@ -1485,12 +1579,17 @@ if scout_player:
     opp_logo = get_team_logo(opp_team)
     p_lines_df = edges_df[edges_df["NORM_NAME"] == norm_scout] if not edges_df.empty else pd.DataFrame()
 
+    inj_banner_tag = ""
+    if p_inj:
+        cls_inj = "inj-out-pill" if p_inj.get("is_out") else "inj-q-pill"
+        inj_banner_tag = f' &nbsp;<span class="{cls_inj}">INJURY REPORT: {p_inj["status"].upper()}</span>'
+
     # Player Hero Banner
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div style="display:flex; align-items:center; gap:14px;">'
         f'<img src="{h_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" style="width:68px; height:68px; border-radius:50%; object-fit:cover; background:#1E2638; border:2px solid #10B981;" />'
-        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Player Prop Scouting · Position: {raw_pos} ({pos_plural})</div>'
+        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Player Prop Scouting · Position: {raw_pos} ({pos_plural}){inj_banner_tag}</div>'
         f'<div style="font-size:1.65rem; font-weight:800; color:#F8FAFC; line-height:1.2;">{p_display}</div>'
         f'<div style="font-size:0.86rem; color:#94A3B8; margin-top:3px; display:flex; align-items:center; gap:6px;">'
         f'<img src="{t_logo}" style="width:18px; height:18px;" /> <b>{p_team}</b> &nbsp;·&nbsp; {loc_label} vs '
@@ -1510,7 +1609,6 @@ if scout_player:
             book=st.session_state["selected_book"]
         )
 
-    # Stat Selector & Hit-Rate Bar Chart
     sc_c1, sc_c2 = st.columns([1.2, 2.8], vertical_alignment="bottom")
     with sc_c1:
         stat_choice = st.selectbox("Inspect Stat Trend", ["PTS", "REB", "AST", "FG3M", "PRA"])
@@ -1534,7 +1632,6 @@ if scout_player:
 
     st.plotly_chart(build_hit_rate_chart(p_hist, stat_choice, custom_line, p_display), use_container_width=True)
 
-    # Side-by-Side: Half-Court Shot Chart & Position-Specific DvP Heat Map
     chart_col, heat_col = st.columns([1.1, 1.05], gap="large")
 
     with chart_col:
@@ -1600,19 +1697,26 @@ if scout_player:
 
         st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
 
-        # Recent Opposing Players of SAME POSITION vs Tonight's Opponent
-        st.markdown(f"<div style='margin-top:1rem; font-weight:700; color:#F8FAFC; font-size:0.9rem;'>Recent {pos_plural} vs {opp_team} (24+ MIN)</div>", unsafe_allow_html=True)
-        opp_pos_log = df[
+        # Primary Opposing Starters of SAME POSITION vs Tonight's Opponent (Capped to 1-2 Players)
+        st.markdown(f"<div style='margin-top:1rem; font-weight:700; color:#F8FAFC; font-size:0.9rem;'>Recent Primary {pos_plural} vs {opp_team}</div>", unsafe_allow_html=True)
+        opp_pos_pool = df[
             (df["OPP_NAME"] == opp_team) &
             (df["POS_GROUP"] == pos_group) &
-            (df["MIN"] >= 24)
-        ].tail(8)
+            (df["MIN"] >= 28)
+        ].copy()
+        # Keep only the single highest-minute player per game so one opponent team never floods the table
+        if not opp_pos_pool.empty:
+            opp_pos_pool = (
+                opp_pos_pool.sort_values(by=["GAME_DATE", "MIN"], ascending=[False, False])
+                .drop_duplicates(subset=["GAME_ID"], keep="first")
+                .head(2)
+            )
 
-        if opp_pos_log.empty:
-            st.caption(f"No recent {pos_plural.lower()} logs found against {opp_team}.")
+        if opp_pos_pool.empty:
+            st.caption(f"No recent primary {pos_plural.lower()} logs found against {opp_team}.")
         else:
             dvp_rows = []
-            for _, dr in opp_pos_log.iloc[::-1].iterrows():
+            for _, dr in opp_pos_pool.iterrows():
                 d_s = dr["GAME_DATE"].strftime("%b %d") if pd.notna(dr["GAME_DATE"]) else "-"
                 d_norm = dr["NORM_NAME"]
                 d_med = media_lookup.get(d_norm, {})
@@ -1686,7 +1790,7 @@ if scout_player:
     st.stop()
 
 # =========================================================
-# SAME-TAB GAME DETAIL PAGE (Projected Box Scores + Game Lines)
+# SAME-TAB GAME DETAIL PAGE (Projected Box Scores + Injury Report)
 # =========================================================
 target_game = st.session_state.get("active_game_page")
 if target_game and "@" in target_game:
@@ -1701,7 +1805,7 @@ if target_game and "@" in target_game:
     parts = [t.strip() for t in target_game.split("@")]
     away_sel, home_sel = parts[0], parts[1]
     g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
-    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, n_sims=15000)
+    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, out_players_key=out_players_tuple, n_sims=15000)
 
     fav_short = home_sel.split()[-1] if detail_sim["proj_spread"] < 0 else away_sel.split()[-1]
     spread_num = abs(detail_sim["proj_spread"])
@@ -1725,12 +1829,23 @@ if target_game and "@" in target_game:
         unsafe_allow_html=True
     )
 
-    st.markdown("##### Projected Player Box Scores (Click Any Player to Open Scouting Profile)")
+    # Display Ruled-Out Injury Report Strip for this Matchup
+    away_outs = team_out_lists.get(away_sel, [])
+    home_outs = team_out_lists.get(home_sel, [])
+    if away_outs or home_outs:
+        out_parts = []
+        if away_outs:
+            out_parts.append(f"<b>{away_sel} OUT:</b> {', '.join(away_outs)}")
+        if home_outs:
+            out_parts.append(f"<b>{home_sel} OUT:</b> {', '.join(home_outs)}")
+        st.markdown(f'<div class="inj-strip">🚫 <b>Injury Report (Excluded from Projections):</b> &nbsp;{" &nbsp;|&nbsp; ".join(out_parts)}</div>', unsafe_allow_html=True)
+
+    st.markdown("##### Projected Active Player Box Scores (Click Any Player to Open Scouting Profile)")
     b1, b2 = st.columns(2, gap="medium")
     with b1:
-        render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"], book=st.session_state["selected_book"], from_game=target_game)
+        render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"], injury_map, book=st.session_state["selected_book"], from_game=target_game)
     with b2:
-        render_box_score_table(f"{home_sel} (Home)", detail_sim["home_win_prob"], detail_sim["home_box"], book=st.session_state["selected_book"], from_game=target_game)
+        render_box_score_table(f"{home_sel} (Home)", detail_sim["home_win_prob"], detail_sim["home_box"], injury_map, book=st.session_state["selected_book"], from_game=target_game)
 
     st.markdown(f"##### Locked Pre-Game Player Lines & DvP Matchup Ratings — {away_sel} @ {home_sel}")
     game_props_df = edges_df[edges_df["FullMatchup"] == target_game] if not edges_df.empty else pd.DataFrame()
@@ -1773,6 +1888,7 @@ with ctrl_c3:
 with ctrl_c4:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
         fetch_and_lock_pregame_slate.clear()
+        fetch_nba_injury_report.clear()
         st.rerun()
 
 filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
@@ -1784,11 +1900,16 @@ if not filtered.empty and search_player.strip():
     ]
 
 # Top KPI Summary Strip
+slate_teams = set()
+for g_lbl in all_game_labels:
+    for t in g_lbl.split("@"):
+        slate_teams.add(t.strip())
+slate_outs_count = sum(len(v) for k, v in team_out_lists.items() if k in slate_teams)
+
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 kpi1.metric(f"Today's Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
-kpi2.metric("Locked Pre-Game Lines", f"{len(filtered)} Props")
-top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Slate Locked"
-kpi3.metric("Top Model Edge", top_pick_str)
+kpi2.metric("Active Pre-Game Props", f"{len(filtered)} Lines")
+kpi3.metric("Ruled Out (Filtered)", f"{slate_outs_count} Players")
 kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
@@ -1825,7 +1946,7 @@ with tab_straight:
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores")
-    st.caption("All projected scores remain locked for the night. Click any matchup to view full projected box scores and locked player prop lines.")
+    st.caption("Injury-adjusted simulations (ruled-out players automatically removed and minutes redistributed). Click any matchup to inspect box scores & props.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
@@ -1840,7 +1961,7 @@ with tab_slate:
             continue
         away_t, home_t = parts[0], parts[1]
         g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
-        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, n_sims=15000)
+        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, out_players_key=out_players_tuple, n_sims=15000)
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
         spread_num = abs(sim_res["proj_spread"])
         tip_badge = g_line.get("tip_str", "")
@@ -1877,7 +1998,7 @@ with tab_parlays:
 
         with col_multi:
             st.markdown("##### Cross-Game +EV Parlay")
-            st.caption("Combines the highest independent model edge from each pre-game matchup.")
+            st.caption("Combines the highest independent active model edge from each pre-game matchup.")
             num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
             if not edges_df.empty:
                 best_per_game = edges_df.drop_duplicates(subset=["FullMatchup"]).head(num_parlay_legs)
@@ -1894,7 +2015,10 @@ with tab_parlays:
                     slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg +EV Parlay | {parlay_odds:+d})"]
                     for _, row in best_per_game.iterrows():
                         slip_lines.append(f"- {row['Player']} | {row['Line']} ({row['Odds']:+d})")
-                        p_badge = player_badge_html(row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""), book=st.session_state["selected_book"])
+                        p_badge = player_badge_html(
+                            row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""),
+                            book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
+                        )
                         st.markdown(
                             f'<div class="pick-card"><div class="pick-top">{p_badge}<span class="ev-pos">{row["Odds"]:+d}</span></div>'
                             f'<div class="pick-line">{row["Line"]}</div>'
@@ -1905,15 +2029,15 @@ with tab_parlays:
                     with st.expander("Copy Parlay Slip", icon=":material/content_copy:"):
                         st.code("\n".join(slip_lines), language=None)
                 else:
-                    st.warning("At least 2 pre-game matchups with props are needed to build a cross-game parlay.")
+                    st.warning("At least 2 pre-game matchups with active props are needed to build a cross-game parlay.")
 
         with col_sgp:
             st.markdown("##### Correlated Same-Game Parlays")
-            st.caption("Pairs locked pre-game lines with strong historical game-log correlations.")
+            st.caption("Pairs active pre-game lines with strong historical game-log correlations.")
             sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()))
-            sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game])
+            sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game], injury_map)
             if sgp_df.empty:
-                st.warning("No high-correlation prop pairs found for this matchup yet.")
+                st.warning("No high-correlation active prop pairs found for this matchup yet.")
             else:
                 st.dataframe(
                     sgp_df.drop(columns=["Game"]),
