@@ -6,9 +6,13 @@ import requests
 import streamlit as st
 from scipy.stats import norm
 
-st.set_page_config(page_title="EdgeLab NBA | Model & SGP Engine", layout="wide")
-st.title("🏀 EdgeLab NBA — Model Projections, Straight Bets & Auto-Parlays")
+# ==========================================
+# BRAND CONFIGURATION (Change your name here!)
+# ==========================================
+BRAND_NAME = "Hector's Picks"
+BRAND_TAGLINE = "Model-Driven NBA Straight Bets, +EV Parlays & Correlation Analytics"
 
+st.set_page_config(page_title=f"{BRAND_NAME} | Prop & SGP Engine", page_icon="🏀", layout="wide")
 def normalize_name(name: str) -> str:
     """Normalizes player names so sportsbook props match ESPN box scores cleanly."""
     if not isinstance(name, str):
