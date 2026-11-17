@@ -10,13 +10,13 @@ from scipy.stats import norm
 # BRAND CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_TAGLINE = "Model-Driven NBA Straight Bets, +EV Parlays & Game Simulations"
+BRAND_TAGLINE = "Model-Driven NBA Straight Bets, Simulated Scores & Correlation Analytics"
 
-st.set_page_config(page_title=f"{BRAND_NAME} | Prop & Game Engine", page_icon="🏀", layout="wide")
+st.set_page_config(page_title=f"{BRAND_NAME} | NBA Quant & Sim Engine", page_icon="🏀", layout="wide")
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1240px; }
+    .block-container { padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1260px; }
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     div[data-testid="stDecoration"] { display: none; }
@@ -46,16 +46,30 @@ st.markdown("""
         font-weight: 700;
         letter-spacing: 0.4px;
     }
-    .scoreboard-box {
+    .game-card {
         background: linear-gradient(135deg, #111827 0%, #1E293B 100%);
         border: 1px solid #334155;
         border-radius: 12px;
-        padding: 1.25rem;
-        text-align: center;
-        margin-bottom: 1rem;
+        padding: 1.1rem 1.25rem;
+        margin-bottom: 0.6rem;
     }
-    .score-num { font-size: 2.3rem; font-weight: 800; color: #10B981; margin: 0; }
-    .score-team { font-size: 1.1rem; font-weight: 700; color: #F9FAFB; margin-bottom: 0.25rem; }
+    .game-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.35rem 0;
+    }
+    .team-label { font-size: 1.05rem; font-weight: 700; color: #F9FAFB; }
+    .team-score { font-size: 1.35rem; font-weight: 800; color: #10B981; }
+    .game-meta {
+        margin-top: 0.6rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #334155;
+        font-size: 0.82rem;
+        color: #9CA3AF;
+        display: flex;
+        justify-content: space-between;
+    }
     .bet-card {
         background-color: #111827;
         border: 1px solid #1F2937;
@@ -74,7 +88,7 @@ st.markdown("""
         font-size: 0.8rem;
         font-weight: 700;
     }
-    .bet-meta { font-size: 0.86rem; color: #9CA3AF; }
+    .bet-meta { font-size: 0.85rem; color: #9CA3AF; }
     .bet-pick { font-size: 0.98rem; font-weight: 600; color: #10B981; margin: 0.2rem 0; }
     .footer-note {
         margin-top: 3rem;
@@ -140,16 +154,28 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
 
 @st.cache_data
 def compute_matchup_ratings(df: pd.DataFrame) -> dict:
-    """Computes defensive multipliers (>1.0 = weak defense / fast pace, <1.0 = tough defense)."""
+    """Computes defensive multipliers (>1.0 = favorable/soft defense, <1.0 = tough defense)."""
     if "OPP_NAME" not in df.columns:
         return {}
     stats = ["PTS", "REB", "AST", "FG3M"]
-    # Sum stats allowed per game by each opponent
     game_allowed = df.groupby(["OPP_NAME", "GAME_ID"])[stats].sum().reset_index()
     team_avg = game_allowed.groupby("OPP_NAME")[stats].mean()
     league_avg = team_avg.mean()
     multipliers = (team_avg / league_avg).fillna(1.0)
     return multipliers.to_dict(orient="index")
+
+def format_matchup_rating(mult: float) -> str:
+    """Converts a defensive multiplier into a clean 100-scale matchup rating badge."""
+    score = round(mult * 100, 1)
+    if score >= 102.0:
+        return f"🟢 {score} (Smash)"
+    elif score >= 100.5:
+        return f"🟢 {score} (Favorable)"
+    elif score <= 98.0:
+        return f"🔴 {score} (Tough)"
+    elif score <= 99.5:
+        return f"🟡 {score} (Below Avg)"
+    return f"⚪ {score} (Neutral)"
 
 @st.cache_data(ttl=900)
 def fetch_tonights_nba_games(api_key: str) -> list:
@@ -248,7 +274,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
 
                 recent = series.tail(10)
                 base_proj = 0.60 * recent.mean() + 0.40 * series.mean()
-                # Apply Opponent Matchup Rating (dampened 50% to avoid overfitting)
                 raw_mult = opp_mults.get(stat, 1.0)
                 adj_mult = 1.0 + 0.50 * (raw_mult - 1.0)
                 proj = base_proj * adj_mult
@@ -270,44 +295,50 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, def_ratings: di
                     ev_pct = (mod_p * dec - 1) * 100
                     edge_pct = (mod_p - nv_p) * 100
                     units = quarter_kelly_units(mod_p, dec)
+                    # For Under bets, invert matchup rating display so green = favorable for the Under
+                    rating_mult = adj_mult if side == "Over" else (2.0 - adj_mult)
                     rows.append({
-                        "Matchup": game_label,
                         "Player": p_data["display_name"],
                         "NORM_NAME": norm_p,
-                        "Play": f"{side} {line} {stat}",
+                        "Line": f"{side} {line} {stat}",
                         "Side": side,
                         "Stat": stat,
-                        "Line": line,
-                        "Matchup Boost": f"{(adj_mult - 1)*100:+.1f}%",
                         "Projection": round(float(proj), 1),
+                        "Matchup": game_label,
+                        "Matchup Rating": format_matchup_rating(rating_mult),
                         "Odds": int(odds),
                         "Win Prob": round(float(mod_p * 100), 1),
-                        "No-Vig": round(float(nv_p * 100), 1),
                         "Edge": round(float(edge_pct), 1),
                         "EV": round(float(ev_pct), 1),
-                        "Size": round(float(units), 2),
+                        "Units": round(float(units), 2),
                     })
 
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
 
+@st.cache_data(ttl=900)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_ratings: dict, n_sims: int = 10000):
     """Simulates a full NBA game bottom-up from active rotation player distributions & matchup ratings."""
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
+        if t_df.empty:
+            return np.full(n_sims, 110.0), pd.DataFrame()
+
         recent_games = t_df["GAME_ID"].drop_duplicates().tail(15)
         recent_df = t_df[t_df["GAME_ID"].isin(recent_games)]
 
-        # Top 9 active rotation players by recent minutes
         rot_players = (
             recent_df.groupby("PLAYER_NAME")["MIN"]
             .agg(["count", "mean"])
-            .query("count >= 4")
+            .query("count >= 3")
             .sort_values(by="mean", ascending=False)
             .head(9)
             .index.tolist()
         )
+        if not rot_players:
+            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:9]
+
         sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
         opp_mults = def_ratings.get(opp, {})
         home_factor = 1.015 if is_home else 0.985
@@ -326,18 +357,19 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
                 stats_proj[st_col] = (mean_val, std_val)
             player_params.append({"player": p, "min": mins, "stats": stats_proj})
 
-        # Build teammate points correlation matrix for realistic game flow
+        # Create a writable NumPy copy (.to_numpy().copy()) to prevent read-only diagonal errors
         piv_pts = sub.pivot(index="GAME_ID", columns="PLAYER_NAME", values="PTS").reindex(columns=rot_players)
-        corr = piv_pts.corr(min_periods=8).fillna(0.0).values
+        corr = piv_pts.corr(min_periods=6).fillna(0.0).to_numpy().copy()
         np.fill_diagonal(corr, 1.0)
-        # Ensure positive semi-definite correlation matrix
+
         eigvals, eigvecs = np.linalg.eigh(corr)
         eigvals = np.maximum(eigvals, 0.05)
         corr_psd = eigvecs @ np.diag(eigvals) @ eigvecs.T
         d = np.sqrt(np.diag(corr_psd))
         corr_psd = corr_psd / np.outer(d, d)
 
-        z = np.random.multivariate_normal(np.zeros(len(rot_players)), corr_psd, size=n_sims)
+        rng = np.random.default_rng(42)
+        z = rng.multivariate_normal(np.zeros(len(rot_players)), corr_psd, size=n_sims)
         sim_pts_matrix = np.zeros((n_sims, len(rot_players)))
         box_rows = []
 
@@ -350,9 +382,9 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
             ast_m, ast_s = p_info["stats"]["AST"]
             fg3_m, fg3_s = p_info["stats"]["FG3M"]
 
-            sim_r = np.clip(np.random.normal(reb_m, reb_s, size=n_sims), 0, None)
-            sim_a = np.clip(np.random.normal(ast_m, ast_s, size=n_sims), 0, None)
-            sim_3 = np.clip(np.random.normal(fg3_m, fg3_s, size=n_sims), 0, None)
+            sim_r = np.clip(rng.normal(reb_m, reb_s, size=n_sims), 0, None)
+            sim_a = np.clip(rng.normal(ast_m, ast_s, size=n_sims), 0, None)
+            sim_3 = np.clip(rng.normal(fg3_m, fg3_s, size=n_sims), 0, None)
 
             box_rows.append({
                 "Player": p_info["player"],
@@ -361,7 +393,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
                 "Proj REB": round(float(np.mean(sim_r)), 1),
                 "Proj AST": round(float(np.mean(sim_a)), 1),
                 "Proj 3PM": round(float(np.mean(sim_3)), 1),
-                "PRA": round(float(np.mean(sim_p + sim_r + sim_a)), 1),
+                "Proj PRA": round(float(np.mean(sim_p + sim_r + sim_a)), 1),
             })
 
         team_totals = sim_pts_matrix.sum(axis=1)
@@ -370,13 +402,13 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, def_rat
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
     home_scores, home_box = get_rotation(home_team, away_team, is_home=True)
 
-    # Resolve ties via slight overtime noise
+    rng = np.random.default_rng(99)
     ties = np.isclose(away_scores, home_scores, atol=0.1)
-    away_scores[ties] += np.random.normal(0, 3.0, size=ties.sum())
+    away_scores[ties] += rng.normal(0, 3.0, size=ties.sum())
 
     away_win_prob = float(np.mean(away_scores > home_scores))
     home_win_prob = 1.0 - away_win_prob
-    proj_spread = float(np.mean(away_scores - home_scores))  # negative means home favored
+    proj_spread = float(np.mean(away_scores - home_scores))
     proj_total = float(np.mean(away_scores + home_scores))
 
     return {
@@ -470,7 +502,8 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
     if len(merged) < 10:
         return {"error": f"Only {len(merged)} shared games found. Pick teammates or frequent opponents."}
 
-    corr_matrix = merged[col_names].corr().values
+    corr_matrix = merged[col_names].corr().to_numpy().copy()
+    np.fill_diagonal(corr_matrix, 1.0)
     corr_df = pd.DataFrame(np.round(corr_matrix, 3), index=labels, columns=labels)
     fair_probs = [get_no_vig_prob(leg["odds"], leg.get("opp_odds", 0)) for leg in legs]
 
@@ -511,17 +544,19 @@ st.sidebar.markdown(f"### ⚙️ {BRAND_NAME}")
 api_key = saved_key if saved_key else st.sidebar.text_input("The Odds API Key", type="password")
 bookmaker = st.sidebar.selectbox("Sportsbook", ["draftkings", "fanduel", "betmgm", "caesars"], format_func=str.upper)
 
+games = []
+game_labels = {}
 if api_key:
     try:
         games = fetch_tonights_nba_games(api_key)
         if games:
             game_labels = {f"{g['away_team']} @ {g['home_team']}": g for g in games}
             selected_games = st.sidebar.multiselect(
-                "Tonight's Slate",
+                "Tonight's Slate (Prop Scanner)",
                 list(game_labels.keys()),
-                default=list(game_labels.keys())[:2]
+                default=list(game_labels.keys())[:3]
             )
-            if st.sidebar.button("Scan Live Board", type="primary", use_container_width=True):
+            if st.sidebar.button("Scan Live Player Props", type="primary", use_container_width=True):
                 slate_data = {}
                 with st.spinner("Pulling live lines & computing matchup edges..."):
                     for lbl in selected_games:
@@ -535,17 +570,19 @@ if api_key:
 
 slate_props = st.session_state.get("slate_props", {})
 
-tab_straight, tab_parlays, tab_sim, tab_custom = st.tabs([
-    "🔥 Top Straight Edges",
+tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
+    "🔥 Top Straight Bets",
+    "🏟️ Tonight's Slate & Box Scores",
     "⚡ Auto-Parlay Builder",
-    "🏟️ Game & Box Score Sim",
     "🎯 Custom SGP Lab"
 ])
 
-# TAB 1: TOP STRAIGHT EDGES
+# =========================================================
+# TAB 1: TOP STRAIGHT BETS (Player, Line, Projection, Matchup, Matchup Rating)
+# =========================================================
 with tab_straight:
     if not slate_props:
-        st.info("Select games in the sidebar and click **Scan Live Board** to populate tonight's top model edges.")
+        st.info("Select games in the sidebar and click **Scan Live Player Props** to populate tonight's top straight bets.")
     else:
         edges_df = evaluate_straight_edges(df, slate_props, def_ratings)
         if edges_df.empty:
@@ -553,11 +590,11 @@ with tab_straight:
         else:
             f1, f2, f3 = st.columns([2, 1.5, 1.5])
             with f1:
-                min_ev = st.slider("Min EV %", min_value=-5.0, max_value=15.0, value=2.0, step=0.5)
+                min_ev = st.slider("Minimum EV %", min_value=-5.0, max_value=15.0, value=1.5, step=0.5)
             with f2:
-                stat_filter = st.multiselect("Stat Filter", ["PTS", "REB", "AST", "FG3M"], default=["PTS", "REB", "AST", "FG3M"])
+                stat_filter = st.multiselect("Stat Type", ["PTS", "REB", "AST", "FG3M"], default=["PTS", "REB", "AST", "FG3M"])
             with f3:
-                search_player = st.text_input("Search Player", placeholder="e.g. Jokic")
+                search_player = st.text_input("Search Player", placeholder="e.g. Jokic, Tatum")
 
             filtered = edges_df[(edges_df["EV"] >= min_ev) & (edges_df["Stat"].isin(stat_filter))]
             if search_player.strip():
@@ -574,37 +611,133 @@ with tab_straight:
                                 <span class="player-title">{row['Player']}</span>
                                 <span class="ev-badge">{row['EV']:+.1f}% EV</span>
                             </div>
-                            <div class="bet-pick">{row['Play']} ({row['Odds']:+d})</div>
-                            <div class="bet-meta">Proj: <b>{row['Projection']}</b> ({row['Matchup Boost']}) · Win: <b>{row['Win Prob']}%</b> · Size: <b>{row['Size']:.2f}u</b></div>
+                            <div class="bet-pick">{row['Line']} ({row['Odds']:+d})</div>
+                            <div class="bet-meta">Projection: <b>{row['Projection']}</b> · Rating: <b>{row['Matchup Rating']}</b></div>
                             <div class="bet-meta" style="margin-top:4px; font-size:0.78rem;">{row['Matchup']}</div>
                         </div>
                         """, unsafe_allow_html=True)
 
-            st.markdown("#### Live Edge Board")
-            display_cols = ["Matchup", "Player", "Play", "Matchup Boost", "Projection", "Odds", "Win Prob", "No-Vig", "Edge", "EV", "Size"]
+            st.markdown("#### All Top Straight Bets")
+            display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV", "Units"]
             st.dataframe(
                 filtered[display_cols],
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
                     "Player": st.column_config.TextColumn("Player", width="medium"),
-                    "Play": st.column_config.TextColumn("Pick", width="medium"),
-                    "Matchup Boost": st.column_config.TextColumn("Def Adj", width="small"),
-                    "Projection": st.column_config.NumberColumn("Model Proj", format="%.1f"),
+                    "Line": st.column_config.TextColumn("Line", width="medium"),
+                    "Projection": st.column_config.NumberColumn("Projection", format="%.1f"),
+                    "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
+                    "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
                     "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
-                    "Win Prob": st.column_config.ProgressColumn("Model Win %", min_value=0, max_value=100, format="%.1f%%"),
-                    "No-Vig": st.column_config.NumberColumn("No-Vig %", format="%.1f%%"),
-                    "Edge": st.column_config.NumberColumn("Edge", format="%+.1f%%"),
+                    "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
                     "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
-                    "Size": st.column_config.NumberColumn("Rec. Units", format="%.2fu"),
+                    "Units": st.column_config.NumberColumn("Rec. Size", format="%.2fu"),
                 }
             )
 
-# TAB 2: AUTO-PARLAY BUILDER
+# =========================================================
+# TAB 2: TONIGHT'S SLATE & CLICK-IN PROJECTED BOX SCORES
+# =========================================================
+with tab_slate:
+    st.markdown("#### Tonight's Projected NBA Scores & Matchup Box Scores")
+    st.caption("Every game below is simulated 10,000 times using player rotation baselines and opponent defensive matchup ratings. Click any game to inspect its projected player box score.")
+
+    # Use live slate games if available, otherwise fall back to popular matchups
+    slate_list = list(game_labels.keys()) if game_labels else [
+        "Denver Nuggets @ Phoenix Suns",
+        "Boston Celtics @ New York Knicks",
+        "Dallas Mavericks @ Oklahoma City Thunder"
+    ]
+
+    if "selected_box_game" not in st.session_state or st.session_state["selected_box_game"] not in slate_list:
+        st.session_state["selected_box_game"] = slate_list[0]
+
+    # Render Game Score Cards in a 3-column grid
+    grid_cols = st.columns(3)
+    for idx, g_lbl in enumerate(slate_list):
+        parts = [t.strip() for t in g_lbl.split("@")]
+        if len(parts) != 2:
+            continue
+        away_t, home_t = parts[0], parts[1]
+        sim_res = simulate_full_game(df, away_t, home_t, def_ratings, n_sims=10000)
+        fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
+        spread_num = abs(sim_res["proj_spread"])
+
+        with grid_cols[idx % 3]:
+            st.markdown(f"""
+            <div class="game-card">
+                <div class="game-row">
+                    <span class="team-label">{away_t} <span style="color:#9CA3AF; font-size:0.82rem;">({sim_res['away_win_prob']}%)</span></span>
+                    <span class="team-score">{sim_res['away_score']}</span>
+                </div>
+                <div class="game-row">
+                    <span class="team-label">{home_t} <span style="color:#9CA3AF; font-size:0.82rem;">({sim_res['home_win_prob']}%)</span></span>
+                    <span class="team-score">{sim_res['home_score']}</span>
+                </div>
+                <div class="game-meta">
+                    <span>Proj Line: <b>{fav_short} -{spread_num}</b></span>
+                    <span>Proj Total: <b>{sim_res['proj_total']}</b></span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Open Box Score: {away_t.split()[-1]} @ {home_t.split()[-1]}", key=f"btn_box_{idx}", use_container_width=True):
+                st.session_state["selected_box_game"] = g_lbl
+
+    st.divider()
+
+    # Drill-Down Projected Box Score View
+    active_game = st.selectbox(
+        "Active Matchup Box Score (Click any game card above or switch here)",
+        slate_list,
+        index=slate_list.index(st.session_state["selected_box_game"])
+    )
+    st.session_state["selected_box_game"] = active_game
+
+    away_sel, home_sel = [t.strip() for t in active_game.split("@")]
+    detail_sim = simulate_full_game(df, away_sel, home_sel, def_ratings, n_sims=10000)
+
+    st.markdown(f"### 📋 Projected Box Score: **{away_sel} ({detail_sim['away_score']}) @ {home_sel} ({detail_sim['home_score']})**")
+    box_c1, box_c2 = st.columns(2, gap="large")
+    with box_c1:
+        st.markdown(f"**{away_sel} (Away)** — Win Prob: `{detail_sim['away_win_prob']}%`")
+        st.dataframe(
+            detail_sim["away_box"],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Player": st.column_config.TextColumn("Player", width="medium"),
+                "Proj MIN": st.column_config.NumberColumn("MIN", format="%.1f"),
+                "Proj PTS": st.column_config.NumberColumn("PTS", format="%.1f"),
+                "Proj REB": st.column_config.NumberColumn("REB", format="%.1f"),
+                "Proj AST": st.column_config.NumberColumn("AST", format="%.1f"),
+                "Proj 3PM": st.column_config.NumberColumn("3PM", format="%.1f"),
+                "Proj PRA": st.column_config.NumberColumn("PRA", format="%.1f"),
+            }
+        )
+    with box_c2:
+        st.markdown(f"**{home_sel} (Home)** — Win Prob: `{detail_sim['home_win_prob']}%`")
+        st.dataframe(
+            detail_sim["home_box"],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Player": st.column_config.TextColumn("Player", width="medium"),
+                "Proj MIN": st.column_config.NumberColumn("MIN", format="%.1f"),
+                "Proj PTS": st.column_config.NumberColumn("PTS", format="%.1f"),
+                "Proj REB": st.column_config.NumberColumn("REB", format="%.1f"),
+                "Proj AST": st.column_config.NumberColumn("AST", format="%.1f"),
+                "Proj 3PM": st.column_config.NumberColumn("3PM", format="%.1f"),
+                "Proj PRA": st.column_config.NumberColumn("PRA", format="%.1f"),
+            }
+        )
+
+# =========================================================
+# TAB 3: AUTO-PARLAY BUILDER
+# =========================================================
 with tab_parlays:
     if not slate_props:
-        st.info("Click **Scan Live Board** in the sidebar to generate cross-game parlays and correlated SGPs.")
+        st.info("Click **Scan Live Player Props** in the sidebar to generate cross-game parlays and correlated SGPs.")
     else:
         col_multi, col_sgp = st.columns(2, gap="large")
 
@@ -629,15 +762,15 @@ with tab_parlays:
 
                     slip_lines = [f"🏀 {BRAND_NAME} ({num_parlay_legs}-Leg +EV Parlay | {parlay_odds:+d})"]
                     for _, row in best_per_game.iterrows():
-                        slip_lines.append(f"• {row['Player']} — {row['Play']} ({row['Odds']:+d})")
+                        slip_lines.append(f"• {row['Player']} — {row['Line']} ({row['Odds']:+d})")
                         st.markdown(f"""
                         <div class="bet-card">
                             <div class="bet-card-header">
                                 <span class="player-title">{row['Player']}</span>
                                 <span class="ev-badge">{row['Odds']:+d}</span>
                             </div>
-                            <div class="bet-pick">{row['Play']}</div>
-                            <div class="bet-meta">Proj: <b>{row['Projection']}</b> · Single EV: <b>{row['EV']:+.1f}%</b> ({row['Matchup']})</div>
+                            <div class="bet-pick">{row['Line']}</div>
+                            <div class="bet-meta">Proj: <b>{row['Projection']}</b> · Rating: <b>{row['Matchup Rating']}</b> · EV: <b>{row['EV']:+.1f}%</b></div>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -668,57 +801,9 @@ with tab_parlays:
                     }
                 )
 
-# TAB 3: GAME & BOX SCORE SIMULATOR
-with tab_sim:
-    st.markdown("#### 10,000-Game Monte Carlo Matchup Simulator")
-    st.caption("Simulates individual player distributions adjusted for opponent defensive ratings & teammate usage correlations, then aggregates team scores.")
-    teams = sorted(df["TEAM_NAME"].dropna().unique())
-    sc1, sc2 = st.columns(2)
-    with sc1:
-        away_t = st.selectbox("Away Team", teams, index=teams.index("Denver Nuggets") if "Denver Nuggets" in teams else 0, key="sim_away")
-    with sc2:
-        home_t = st.selectbox("Home Team", teams, index=teams.index("Phoenix Suns") if "Phoenix Suns" in teams else 1, key="sim_home")
-
-    if st.button("Simulate 10,000 Games", type="primary"):
-        sim_res = simulate_full_game(df, away_t, home_t, def_ratings, n_sims=10000)
-
-        sb1, sb2, sb3 = st.columns([2, 1.5, 2])
-        with sb1:
-            st.markdown(f"""
-            <div class="scoreboard-box">
-                <div class="score-team">{away_t} (Away)</div>
-                <p class="score-num">{sim_res['away_score']}</p>
-                <div class="bet-meta">Win Prob: <b>{sim_res['away_win_prob']}%</b></div>
-            </div>
-            """, unsafe_allow_html=True)
-        with sb2:
-            fav_team = home_t if sim_res["proj_spread"] < 0 else away_t
-            spread_val = abs(sim_res["proj_spread"])
-            st.markdown(f"""
-            <div class="scoreboard-box">
-                <div class="score-team">Projected Line</div>
-                <p class="score-num" style="font-size:1.65rem;">{fav_team.split()[-1]} -{spread_val}</p>
-                <div class="bet-meta">Total O/U: <b>{sim_res['proj_total']}</b></div>
-            </div>
-            """, unsafe_allow_html=True)
-        with sb3:
-            st.markdown(f"""
-            <div class="scoreboard-box">
-                <div class="score-team">{home_t} (Home)</div>
-                <p class="score-num">{sim_res['home_score']}</p>
-                <div class="bet-meta">Win Prob: <b>{sim_res['home_win_prob']}%</b></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        b1, b2 = st.columns(2)
-        with b1:
-            st.markdown(f"**{away_t} Projected Box Score**")
-            st.dataframe(sim_res["away_box"], use_container_width=True, hide_index=True)
-        with b2:
-            st.markdown(f"**{home_t} Projected Box Score**")
-            st.dataframe(sim_res["home_box"], use_container_width=True, hide_index=True)
-
+# =========================================================
 # TAB 4: CUSTOM SGP LAB
+# =========================================================
 with tab_custom:
     st.markdown("#### Custom Multi-Leg SGP Correlation Pricer")
     teams = sorted(df["TEAM_NAME"].dropna().unique())
