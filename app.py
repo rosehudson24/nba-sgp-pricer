@@ -230,7 +230,6 @@ def normalize_name(name: str) -> str:
 
 @st.cache_data(ttl=21600)
 def load_nba_data(seasons=(2025, 2026, 2027)):
-    """Loads multi-season box scores including the active 2026-27 season (tagged 2027)."""
     frames = []
     for yr in seasons:
         url = f"https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_player_boxscores/player_box_{yr}.parquet"
@@ -272,7 +271,6 @@ def load_nba_data(seasons=(2025, 2026, 2027)):
 
 @st.cache_data(ttl=21600)
 def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
-    """Computes recency-weighted opponent defensive allowances, pace factors, and last game date per team."""
     stats = ["PTS", "REB", "AST", "FG3M", "PRA"]
     if "OPP_NAME" not in df.columns:
         return {"def_mult": {}, "team_pace": {}, "last_game": {}}
@@ -322,12 +320,10 @@ def format_matchup_rating(mult: float) -> str:
         return f"{score} · Below Avg ({diff:+.1f}%)"
     return f"{score} · Neutral ({diff:+.1f}%)"
 
-@st.cache_data(ttl=1800)
-def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games: int = 6):
-    """Fetches ONLY pre-game spreads/totals and player props (skips all live in-play games)."""
+@st.cache_data(ttl=900)
+def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games: int = 8):
+    """Fetches all available NBA games & player props, prioritizing pre-game matchups first."""
     now_utc = datetime.now(timezone.utc)
-    commence_from = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-
     odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
     game_res = requests.get(
         odds_url,
@@ -337,26 +333,32 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
             "markets": "spreads,totals",
             "oddsFormat": "american",
             "bookmakers": bookmaker,
-            "commenceTimeFrom": commence_from,
         },
         timeout=10
     )
     game_res.raise_for_status()
     raw_games = game_res.json()
 
-    # Strict pre-tip guard: drop any game whose commence_time has already passed
-    games = []
+    pregame_list = []
+    live_list = []
     for g in raw_games:
         c_str = g.get("commence_time", "")
+        is_pre = True
         if c_str:
             tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
-            if tip_utc <= now_utc:
-                continue
-        games.append(g)
+            is_pre = tip_utc > now_utc
+        g["_is_pregame"] = is_pre
+        if is_pre:
+            pregame_list.append(g)
+        else:
+            live_list.append(g)
+
+    # Sort pre-game matchups first so they always get scanned first
+    ordered_games = pregame_list + live_list
 
     game_lines = {}
     all_game_labels = []
-    for g in games:
+    for g in ordered_games:
         lbl = f"{g['away_team']} @ {g['home_team']}"
         all_game_labels.append(lbl)
         spread_home = 0.0
@@ -371,7 +373,12 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
                     for o in m.get("outcomes", []):
                         if o.get("name") == "Over" and o.get("point") is not None:
                             total_line = float(o["point"])
-        game_lines[lbl] = {"spread_home": spread_home, "total": total_line, "id": g["id"]}
+        game_lines[lbl] = {
+            "spread_home": spread_home,
+            "total": total_line,
+            "id": g["id"],
+            "is_pregame": g["_is_pregame"],
+        }
 
     market_map = {
         "player_points": "PTS",
@@ -382,7 +389,7 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
     }
     slate_props = {}
 
-    for g in games[:max_games]:
+    for g in ordered_games[:max_games]:
         lbl = f"{g['away_team']} @ {g['home_team']}"
         url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{g['id']}/odds"
         params = {
@@ -451,7 +458,6 @@ def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.94) -
     return float(np.sqrt(max(var, 0.65)))
 
 def skewed_prob_over(line: float, proj_mean: float, proj_std: float, stat: str, emp_series: pd.Series) -> float:
-    """Blends empirical recency hit rate with a right-skewed Gamma distribution for discrete NBA stats."""
     emp_recent = (emp_series.tail(15) > line).mean()
     emp_season = (emp_series.tail(40) > line).mean()
     emp_blend = 0.65 * emp_recent + 0.35 * emp_season
@@ -468,7 +474,6 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, stat: str, 
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
 def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict) -> pd.DataFrame:
-    """Multi-factor projection engine: Per-Min Rate x Proj Min x Opp Def x Vegas Pace x Home/Away x Rest/Blowout."""
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     def_mults_all = team_metrics["def_mult"]
@@ -480,9 +485,10 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         if len(teams_in_game) != 2:
             continue
         away_team, home_team = teams_in_game[0], teams_in_game[1]
-        g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": 228.0})
+        g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": 228.0, "is_pregame": True})
         vegas_total = g_line_info["total"]
         abs_spread = abs(g_line_info["spread_home"])
+        status_tag = "Pre-Game" if g_line_info.get("is_pregame", True) else "Live"
 
         vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
 
@@ -551,6 +557,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         "Line": f"{side} {line} {stat}",
                         "Side": side,
                         "Stat": stat,
+                        "Status": status_tag,
                         "Projection": round(float(proj), 1),
                         "Matchup": game_label,
                         "Matchup Rating": format_matchup_rating(rating_mult),
@@ -562,7 +569,11 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
     if not rows:
         return pd.DataFrame()
-    return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
+    # Sort Pre-Game lines first, then highest EV%
+    df_out = pd.DataFrame(rows)
+    df_out["_pre_sort"] = np.where(df_out["Status"] == "Pre-Game", 0, 1)
+    df_out = df_out.sort_values(by=["_pre_sort", "EV"], ascending=[True, False]).drop(columns=["_pre_sort"]).reset_index(drop=True)
+    return df_out
 
 @st.cache_data(ttl=1800)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, n_sims: int = 15000):
@@ -805,12 +816,12 @@ st.markdown(f"""
             <p class="brand-sub">{BRAND_SUBTITLE}</p>
         </div>
     </div>
-    <span class="status-badge"><span class="status-dot"></span> PRE-GAME MODEL & ODDS FEED</span>
+    <span class="status-badge"><span class="status-dot"></span> LIVE MODEL & ODDS FEED</span>
 </div>
 """, unsafe_allow_html=True)
 
 # Inline Control Strip
-ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1.8, 1.8, 0.8], vertical_alignment="bottom")
+ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 1.2, 1.5, 1.5, 0.7], vertical_alignment="bottom")
 with ctrl_c1:
     bookmaker = st.selectbox(
         "Sportsbook",
@@ -818,10 +829,12 @@ with ctrl_c1:
         format_func=lambda x: {"draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "caesars": "Caesars"}[x]
     )
 with ctrl_c2:
-    min_ev = st.slider("Minimum Edge (EV %)", min_value=-5.0, max_value=15.0, value=1.5, step=0.5)
+    slate_mode = st.selectbox("Board Filter", ["All Lines (Pre-Game First)", "Pre-Game Only"])
 with ctrl_c3:
-    search_player = st.text_input("Filter by Player or Team", placeholder="Search player or matchup...")
+    min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
 with ctrl_c4:
+    search_player = st.text_input("Search", placeholder="Player or team...")
+with ctrl_c5:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
         fetch_full_slate_data.clear()
         st.rerun()
@@ -836,12 +849,22 @@ fetched_at = "Just now"
 
 if saved_key:
     try:
-        all_game_labels, game_lines, slate_props, fetched_at = fetch_full_slate_data(saved_key, bookmaker=bookmaker, max_games=6)
+        all_game_labels, game_lines, slate_props, fetched_at = fetch_full_slate_data(saved_key, bookmaker=bookmaker, max_games=8)
+        # Never keep an empty result cached if API returned 0 props
+        if not slate_props:
+            fetch_full_slate_data.clear()
     except Exception as e:
         st.error(f"Live odds feed unavailable: {e}")
 
 edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics) if slate_props else pd.DataFrame()
-filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
+filtered = edges_df.copy()
+
+if not filtered.empty:
+    if slate_mode == "Pre-Game Only":
+        pre_only = filtered[filtered["Status"] == "Pre-Game"]
+        if not pre_only.empty:
+            filtered = pre_only
+    filtered = filtered[filtered["EV"] >= min_ev]
 
 if not filtered.empty and search_player.strip():
     q = search_player.strip()
@@ -852,8 +875,8 @@ if not filtered.empty and search_player.strip():
 
 # Top KPI Summary Strip
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("Pre-Game Slate", f"{len(slate_props)} Games")
-kpi2.metric("+EV Straight Plays", f"{len(filtered)} Edges")
+kpi1.metric("Active Slate", f"{len(slate_props)} Games")
+kpi2.metric("Lines Displayed", f"{len(filtered)} Props")
 top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Awaiting Lines"
 kpi3.metric("Top Model Edge", top_pick_str)
 kpi4.metric("Last Board Sync", fetched_at)
@@ -873,9 +896,9 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 # =========================================================
 with tab_straight:
     if not slate_props:
-        st.info("No pre-game NBA player props are currently open on the board (all tonight's games have tipped off or tomorrow's lines haven't posted yet).")
+        st.info("Sportsbooks have not posted player props for the upcoming NBA slate yet. Click Refresh once lines open.")
     elif filtered.empty:
-        st.warning(f"No straight plays currently meet the {min_ev:+.1f}% EV threshold. Lower the EV slider above to view more lines.")
+        st.warning(f"No lines match your current filter ({min_ev:+.1f}% EV). Lower the Minimum EV slider above to view all posted props.")
     else:
         st.markdown("##### Featured Highest-EV Plays")
         top_cols = st.columns(3)
@@ -892,7 +915,7 @@ with tab_straight:
                         Projection: <b>{row['Projection']}</b> · Win Prob: <b>{row['Win Prob']}%</b><br>
                         Matchup Rating: <b>{row['Matchup Rating']}</b>
                     </div>
-                    <div class="pick-matchup">{row['Matchup']}</div>
+                    <div class="pick-matchup">{row['Matchup']} · {row['Status']}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -903,13 +926,14 @@ with tab_straight:
             ("FG3M", "3-Pointers Made Props (3PM)"),
             ("PRA", "Points + Rebounds + Assists (PRA)"),
         ]
-        display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Odds", "Win Prob", "EV"]
+        display_cols = ["Player", "Line", "Projection", "Matchup", "Matchup Rating", "Status", "Odds", "Win Prob", "EV"]
         col_cfg = {
             "Player": st.column_config.TextColumn("Player", width="medium"),
             "Line": st.column_config.TextColumn("Line", width="medium"),
             "Projection": st.column_config.NumberColumn("Projection", format="%.1f"),
             "Matchup": st.column_config.TextColumn("Matchup", width="medium"),
             "Matchup Rating": st.column_config.TextColumn("Matchup Rating", width="medium"),
+            "Status": st.column_config.TextColumn("Status", width="small"),
             "Odds": st.column_config.NumberColumn("Book Odds", format="%+d"),
             "Win Prob": st.column_config.ProgressColumn("Win Prob", min_value=0, max_value=100, format="%.1f%%"),
             "EV": st.column_config.NumberColumn("EV %", format="%+.1f%%"),
@@ -924,7 +948,7 @@ with tab_straight:
             </div>
             """, unsafe_allow_html=True)
             if stat_df.empty:
-                st.caption(f"No {stat_code} props meeting the {min_ev:+.1f}% EV filter right now.")
+                st.caption(f"No {stat_code} props posted on the board right now.")
             else:
                 st.dataframe(
                     stat_df[display_cols],
@@ -937,7 +961,7 @@ with tab_straight:
 # TAB 2: TONIGHT'S SLATE & CLICK-IN PROJECTED BOX SCORES
 # =========================================================
 with tab_slate:
-    st.markdown("##### Upcoming Projected NBA Scores")
+    st.markdown("##### Projected NBA Scores & Matchup Box Scores")
     st.caption("Simulated 15,000 times using per-minute rate models, opponent defensive ratings, Vegas pace environments, and rest/location splits.")
 
     slate_list = all_game_labels if all_game_labels else [
@@ -1015,13 +1039,13 @@ with tab_slate:
 # =========================================================
 with tab_parlays:
     if not slate_props:
-        st.info("Auto-parlays will populate automatically as soon as pre-game player props open on the sportsbook feed.")
+        st.info("Auto-parlays will populate automatically as soon as player props open on the sportsbook feed.")
     else:
         col_multi, col_sgp = st.columns(2, gap="large")
 
         with col_multi:
             st.markdown("##### Cross-Game +EV Parlay")
-            st.caption("Combines the highest independent model edge from each matchup on the pre-game slate.")
+            st.caption("Combines the highest independent model edge from each matchup on the slate.")
             num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
             if not edges_df.empty:
                 best_per_game = edges_df.drop_duplicates(subset=["Matchup"]).head(num_parlay_legs)
@@ -1052,15 +1076,15 @@ with tab_parlays:
                     with st.expander("Copy Parlay Slip", icon=":material/content_copy:"):
                         st.code("\n".join(slip_lines), language=None)
                 else:
-                    st.warning("At least 2 pre-game matchups with props are needed to build a cross-game parlay.")
+                    st.warning("At least 2 matchups with props are needed to build a cross-game parlay.")
 
         with col_sgp:
             st.markdown("##### Correlated Same-Game Parlays")
-            st.caption("Pairs live pre-game lines with strong historical game-log correlations.")
+            st.caption("Pairs live lines with strong historical game-log correlations.")
             sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()))
             sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game])
             if sgp_df.empty:
-                st.warning("No high-correlation live prop pairs found for this matchup yet.")
+                st.warning("No high-correlation prop pairs found for this matchup yet.")
             else:
                 st.dataframe(
                     sgp_df.drop(columns=["Game"]),
