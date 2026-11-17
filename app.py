@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 import requests
@@ -277,7 +277,6 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
     if "OPP_NAME" not in df.columns:
         return {"def_mult": {}, "team_pace": {}, "last_game": {}}
 
-    # Weight most recent season heavier for defensive ratings
     max_season = df["SEASON"].max()
     recent_df = df[df["SEASON"] >= max_season - 1].copy()
 
@@ -292,7 +291,6 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
     league_avg = team_allowed.mean()
     def_mult = (team_allowed / league_avg).fillna(1.0).to_dict(orient="index")
 
-    # Team offensive pace proxy (points scored + allowed vs league average)
     game_scored = recent_df.groupby(["TEAM_NAME", "GAME_ID", "SEASON"])["PTS"].sum().reset_index()
     game_scored["w"] = np.where(game_scored["SEASON"] == max_season, 2.0, 1.0)
     team_scored = game_scored.groupby("TEAM_NAME").apply(
@@ -326,7 +324,10 @@ def format_matchup_rating(mult: float) -> str:
 
 @st.cache_data(ttl=1800)
 def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games: int = 6):
-    """Fetches live game spreads/totals AND player props for tonight's slate."""
+    """Fetches ONLY pre-game spreads/totals and player props (skips all live in-play games)."""
+    now_utc = datetime.now(timezone.utc)
+    commence_from = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
     game_res = requests.get(
         odds_url,
@@ -335,12 +336,23 @@ def fetch_full_slate_data(api_key: str, bookmaker: str = "draftkings", max_games
             "regions": "us",
             "markets": "spreads,totals",
             "oddsFormat": "american",
-            "bookmakers": bookmaker
+            "bookmakers": bookmaker,
+            "commenceTimeFrom": commence_from,
         },
         timeout=10
     )
     game_res.raise_for_status()
-    games = game_res.json()
+    raw_games = game_res.json()
+
+    # Strict pre-tip guard: drop any game whose commence_time has already passed
+    games = []
+    for g in raw_games:
+        c_str = g.get("commence_time", "")
+        if c_str:
+            tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
+            if tip_utc <= now_utc:
+                continue
+        games.append(g)
 
     game_lines = {}
     all_game_labels = []
@@ -447,13 +459,11 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, stat: str, 
     if proj_mean <= 0.1:
         return 0.01
 
-    # Gamma distribution captures positive skewness of NBA counting stats (3PM, AST, REB, PTS)
     variance = max(proj_std ** 2, proj_mean * 1.05)
     shape_k = (proj_mean ** 2) / variance
     scale_theta = variance / proj_mean
     dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
 
-    # Give higher weight to parametric Gamma distribution as sample size grows
     w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
@@ -474,7 +484,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_total = g_line_info["total"]
         abs_spread = abs(g_line_info["spread_home"])
 
-        # Vegas game total environment multiplier relative to 228.0 baseline
         vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
 
         for norm_p, p_data in game_props.items():
@@ -489,22 +498,18 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             opp_team = away_team if is_home else home_team
             opp_mults = def_mults_all.get(opp_team, {})
 
-            # 1. Project Minutes (Exponentially weighted recent minutes + blowout & B2B adjustments)
             min_vals = p_df["MIN"].dropna().tail(30).values
             proj_min = exp_weighted_mean(min_vals, decay=0.90)
 
-            # Blowout risk trim: heavy favorites/underdogs (>11.5 spread) see ~4% starter minutes trim
             if abs_spread >= 11.5 and proj_min >= 28.0:
                 proj_min *= 0.96
 
-            # Back-to-back fatigue check
             b2b_mult = 1.0
             if player_team in last_games:
                 days_rest = (today_ts - last_games[player_team]).days
                 if days_rest == 1:
-                    b2b_mult = 0.975  # ~2.5% efficiency drop on 0 days rest
+                    b2b_mult = 0.975
 
-            # Home / Away split factor
             loc_mult = 1.012 if is_home else 0.988
 
             for stat, info in p_data["stats"].items():
@@ -515,12 +520,10 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 if len(valid_df) < 12:
                     continue
 
-                # 2. Per-Minute Production Rate (exponentially weighted)
                 per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
                 exp_rate = exp_weighted_mean(per_min_rates, decay=0.94)
                 base_proj = exp_rate * proj_min
 
-                # 3. Opponent Defensive Rating + Vegas Game Pace + Location + B2B
                 raw_def = opp_mults.get(stat, 1.0)
                 damp_def = 1.0 + 0.55 * (raw_def - 1.0)
                 total_env_mult = damp_def * vegas_pace_mult * loc_mult * b2b_mult
@@ -802,7 +805,7 @@ st.markdown(f"""
             <p class="brand-sub">{BRAND_SUBTITLE}</p>
         </div>
     </div>
-    <span class="status-badge"><span class="status-dot"></span> LIVE MODEL & ODDS FEED</span>
+    <span class="status-badge"><span class="status-dot"></span> PRE-GAME MODEL & ODDS FEED</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -849,7 +852,7 @@ if not filtered.empty and search_player.strip():
 
 # Top KPI Summary Strip
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("Active Slate", f"{len(slate_props)} Games")
+kpi1.metric("Pre-Game Slate", f"{len(slate_props)} Games")
 kpi2.metric("+EV Straight Plays", f"{len(filtered)} Edges")
 top_pick_str = f"{filtered.iloc[0]['Player']} ({filtered.iloc[0]['EV']:+.1f}%)" if not filtered.empty else "Awaiting Lines"
 kpi3.metric("Top Model Edge", top_pick_str)
@@ -870,7 +873,7 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 # =========================================================
 with tab_straight:
     if not slate_props:
-        st.info("No live NBA player props are currently posted on the board (games may already be underway or lines haven't opened yet).")
+        st.info("No pre-game NBA player props are currently open on the board (all tonight's games have tipped off or tomorrow's lines haven't posted yet).")
     elif filtered.empty:
         st.warning(f"No straight plays currently meet the {min_ev:+.1f}% EV threshold. Lower the EV slider above to view more lines.")
     else:
@@ -934,7 +937,7 @@ with tab_straight:
 # TAB 2: TONIGHT'S SLATE & CLICK-IN PROJECTED BOX SCORES
 # =========================================================
 with tab_slate:
-    st.markdown("##### Tonight's Projected NBA Scores")
+    st.markdown("##### Upcoming Projected NBA Scores")
     st.caption("Simulated 15,000 times using per-minute rate models, opponent defensive ratings, Vegas pace environments, and rest/location splits.")
 
     slate_list = all_game_labels if all_game_labels else [
@@ -1012,13 +1015,13 @@ with tab_slate:
 # =========================================================
 with tab_parlays:
     if not slate_props:
-        st.info("Auto-parlays will populate automatically as soon as tonight's player props open on the sportsbook feed.")
+        st.info("Auto-parlays will populate automatically as soon as pre-game player props open on the sportsbook feed.")
     else:
         col_multi, col_sgp = st.columns(2, gap="large")
 
         with col_multi:
             st.markdown("##### Cross-Game +EV Parlay")
-            st.caption("Combines the highest independent model edge from each matchup on tonight's slate.")
+            st.caption("Combines the highest independent model edge from each matchup on the pre-game slate.")
             num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
             if not edges_df.empty:
                 best_per_game = edges_df.drop_duplicates(subset=["Matchup"]).head(num_parlay_legs)
@@ -1049,11 +1052,11 @@ with tab_parlays:
                     with st.expander("Copy Parlay Slip", icon=":material/content_copy:"):
                         st.code("\n".join(slip_lines), language=None)
                 else:
-                    st.warning("At least 2 active games with props are needed to build a cross-game parlay.")
+                    st.warning("At least 2 pre-game matchups with props are needed to build a cross-game parlay.")
 
         with col_sgp:
             st.markdown("##### Correlated Same-Game Parlays")
-            st.caption("Pairs live lines tonight with strong historical game-log correlations.")
+            st.caption("Pairs live pre-game lines with strong historical game-log correlations.")
             sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()))
             sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game])
             if sgp_df.empty:
