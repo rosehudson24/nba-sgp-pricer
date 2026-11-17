@@ -1,11 +1,22 @@
+import re
+import unicodedata
 import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
 from scipy.stats import norm
 
-st.set_page_config(page_title="SGP Fair-Odds Engine", layout="wide")
-st.title("🏀 NBA SGP Correlation & Fair-Odds Pricer")
+st.set_page_config(page_title="EdgeLab NBA | Model & SGP Engine", layout="wide")
+st.title("🏀 EdgeLab NBA — Model Projections, Straight Bets & Auto-Parlays")
+
+def normalize_name(name: str) -> str:
+    """Normalizes player names so sportsbook props match ESPN box scores cleanly."""
+    if not isinstance(name, str):
+        return ""
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("utf-8")
+    name = name.lower().replace(".", "").replace("'", "").replace("-", " ")
+    name = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", name)
+    return re.sub(r"\s+", " ", name).strip()
 
 @st.cache_data
 def load_nba_data(seasons=(2024, 2025, 2026)):
@@ -19,8 +30,10 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
     df = pd.concat(frames, ignore_index=True)
     df = df[df["minutes"] >= 15].copy()
     df["game_id"] = df["game_id"].astype(str)
+    if "game_date" in df.columns:
+        df = df.sort_values("game_date")
     df = df.drop_duplicates(subset=["game_id", "athlete_display_name"])
-    return df.rename(columns={
+    df = df.rename(columns={
         "game_id": "GAME_ID",
         "athlete_display_name": "PLAYER_NAME",
         "team_display_name": "TEAM_NAME",
@@ -32,6 +45,8 @@ def load_nba_data(seasons=(2024, 2025, 2026)):
         "blocks": "BLK",
         "turnovers": "TOV"
     })
+    df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
+    return df
 
 @st.cache_data(ttl=600)
 def fetch_tonights_nba_games(api_key: str) -> list:
@@ -47,8 +62,6 @@ def fetch_game_player_props(api_key: str, event_id: str, bookmaker: str = "draft
         "player_rebounds": "REB",
         "player_assists": "AST",
         "player_threes": "FG3M",
-        "player_steals": "STL",
-        "player_blocks": "BLK"
     }
     url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{event_id}/odds"
     params = {
@@ -73,10 +86,12 @@ def fetch_game_player_props(api_key: str, event_id: str, bookmaker: str = "draft
                 side = outcome.get("name")
                 line = outcome.get("point")
                 price = outcome.get("price")
-                if not player or side not in ("Over", "Under"):
+                if not player or side not in ("Over", "Under") or line is None:
                     continue
-                props.setdefault(player, {}).setdefault(stat_code, {"line": line})
-                props[player][stat_code][side] = int(price)
+                norm_p = normalize_name(player)
+                entry = props.setdefault(norm_p, {"display_name": player, "stats": {}})
+                stat_entry = entry["stats"].setdefault(stat_code, {"line": float(line)})
+                stat_entry[side] = int(price)
     return props
 
 def american_to_prob(odds: int) -> float:
@@ -95,6 +110,136 @@ def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
         p_opp = american_to_prob(odds_opposing)
         return p_sel / (p_sel + p_opp)
     return p_sel * 0.955
+
+def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict) -> pd.DataFrame:
+    """Compares weighted historical player projections + empirical hit rates vs. live book lines."""
+    rows = []
+    grouped = {k: v for k, v in df.groupby("NORM_NAME")}
+
+    for game_label, game_props in slate_props.items():
+        for norm_p, p_data in game_props.items():
+            if norm_p not in grouped:
+                continue
+            p_df = grouped[norm_p]
+            if len(p_df) < 12:
+                continue
+
+            for stat, info in p_data["stats"].items():
+                if stat not in p_df.columns or "Over" not in info or "Under" not in info:
+                    continue
+                line = info["line"]
+                series = p_df[stat].dropna()
+                if len(series) < 12:
+                    continue
+
+                # Weighted projection: 60% Last 10 games + 40% Full Sample
+                recent = series.tail(10)
+                proj = 0.60 * recent.mean() + 0.40 * series.mean()
+                std = max(series.std(), 1.25)
+
+                # Blend empirical hit rate (Last 15) with Normal distribution probability
+                emp_over = (series.tail(15) > line).mean()
+                norm_over = 1 - norm.cdf(line, loc=proj, scale=std)
+                model_over = 0.50 * emp_over + 0.50 * norm_over
+                model_under = 1.0 - model_over
+
+                nv_over = get_no_vig_prob(info["Over"], info["Under"])
+                nv_under = get_no_vig_prob(info["Under"], info["Over"])
+
+                for side, mod_p, nv_p, odds in [
+                    ("Over", model_over, nv_over, info["Over"]),
+                    ("Under", model_under, nv_under, info["Under"]),
+                ]:
+                    dec = american_to_decimal(odds)
+                    ev_pct = (mod_p * dec - 1) * 100
+                    edge_pct = (mod_p - nv_p) * 100
+                    rows.append({
+                        "Game": game_label,
+                        "Player": p_data["display_name"],
+                        "NORM_NAME": norm_p,
+                        "Pick": f"{side} {line} {stat}",
+                        "Side": side,
+                        "Stat": stat,
+                        "Line": line,
+                        "Model Proj": round(proj, 1),
+                        "Book Odds": odds,
+                        "Model Win %": round(mod_p * 100, 1),
+                        "No-Vig %": round(nv_p * 100, 1),
+                        "Edge %": round(edge_pct, 1),
+                        "EV %": round(ev_pct, 1),
+                    })
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values(by="EV %", ascending=False).reset_index(drop=True)
+
+def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, min_games: int = 15) -> pd.DataFrame:
+    """Finds top correlated pairs in a single game where both players have live lines tonight."""
+    active_norms = [np_name for np_name in game_props.keys() if np_name in set(df["NORM_NAME"])]
+    sub = df[df["NORM_NAME"].isin(active_norms)].copy()
+    if sub.empty:
+        return pd.DataFrame()
+
+    stats = ["PTS", "REB", "AST", "FG3M"]
+    pivoted = sub.pivot(index="GAME_ID", columns="NORM_NAME", values=stats)
+    pivoted.columns = [f"{p}|{s}" for s, p in pivoted.columns]
+
+    corr = pivoted.corr(min_periods=min_games)
+    mask = np.triu(np.ones(corr.shape), k=1).astype(bool)
+    pairs = corr.where(mask).unstack().dropna().reset_index()
+    pairs.columns = ["B", "A", "Corr"]
+
+    sgp_rows = []
+    for _, r in pairs.iterrows():
+        p1, s1 = r["A"].split("|")
+        p2, s2 = r["B"].split("|")
+        if p1 == p2:
+            continue
+        st1 = game_props.get(p1, {}).get("stats", {}).get(s1, {})
+        st2 = game_props.get(p2, {}).get("stats", {}).get(s2, {})
+        if not ("Over" in st1 and "Over" in st2 and "Under" in st2):
+            continue
+
+        c_val = r["Corr"]
+        if c_val >= 0.22:
+            # Positive stack: Over + Over
+            p_a = get_no_vig_prob(st1["Over"], st1.get("Under", 0))
+            p_b = get_no_vig_prob(st2["Over"], st2.get("Under", 0))
+            z = np.random.multivariate_normal([0, 0], [[1, c_val], [c_val, 1]], size=40000)
+            u = norm.cdf(z)
+            joint_p = float(np.mean((u[:, 0] < p_a) & (u[:, 1] < p_b)))
+            sgp_rows.append({
+                "Game": game_label,
+                "Type": "📈 Positive Stack",
+                "Leg 1": f"{game_props[p1]['display_name']} Over {st1['line']} {s1} ({st1['Over']:+d})",
+                "Leg 2": f"{game_props[p2]['display_name']} Over {st2['line']} {s2} ({st2['Over']:+d})",
+                "Correlation": round(c_val, 3),
+                "Naive Odds": f"{prob_to_american(p_a * p_b):+d}",
+                "True Fair Odds": f"{prob_to_american(joint_p):+d}",
+            })
+        elif c_val <= -0.22:
+            # Negative fade: Leg 1 Over + Leg 2 Under
+            p_a = get_no_vig_prob(st1["Over"], st1.get("Under", 0))
+            p_b = get_no_vig_prob(st2["Under"], st2.get("Over", 0))
+            eff_corr = abs(c_val)
+            z = np.random.multivariate_normal([0, 0], [[1, eff_corr], [eff_corr, 1]], size=40000)
+            u = norm.cdf(z)
+            joint_p = float(np.mean((u[:, 0] < p_a) & (u[:, 1] < p_b)))
+            sgp_rows.append({
+                "Game": game_label,
+                "Type": "📉 Negative Fade",
+                "Leg 1": f"{game_props[p1]['display_name']} Over {st1['line']} {s1} ({st1['Over']:+d})",
+                "Leg 2": f"{game_props[p2]['display_name']} Under {st2['line']} {s2} ({st2['Under']:+d})",
+                "Correlation": round(c_val, 3),
+                "Naive Odds": f"{prob_to_american(p_a * p_b):+d}",
+                "True Fair Odds": f"{prob_to_american(joint_p):+d}",
+            })
+
+    if not sgp_rows:
+        return pd.DataFrame()
+    return pd.DataFrame(sgp_rows).reindex(
+        pd.DataFrame(sgp_rows)["Correlation"].abs().sort_values(ascending=False).index
+    ).head(15).reset_index(drop=True)
 
 def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 100000):
     merged = None
@@ -138,87 +283,116 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-def scan_matchup_correlations(df: pd.DataFrame, team_a: str, team_b: str, min_games: int = 20):
-    sub = df[df["TEAM_NAME"].isin([team_a, team_b])].copy()
-    counts = sub["PLAYER_NAME"].value_counts()
-    active_players = counts[counts >= min_games].index
-    sub = sub[sub["PLAYER_NAME"].isin(active_players)]
-
-    stats = ["PTS", "REB", "AST", "FG3M"]
-    pivoted = sub.pivot(index="GAME_ID", columns="PLAYER_NAME", values=stats)
-    pivoted.columns = [f"{player} ({stat})" for stat, player in pivoted.columns]
-
-    corr = pivoted.corr(min_periods=min_games)
-    mask = np.triu(np.ones(corr.shape), k=1).astype(bool)
-    pairs = corr.where(mask).unstack().dropna().reset_index()
-    pairs.columns = ["Leg B", "Leg A", "Correlation"]
-    pairs = pairs[["Leg A", "Leg B", "Correlation"]]
-
-    pairs = pairs[pairs["Leg A"].str.split(" \\(").str[0] != pairs["Leg B"].str.split(" \\(").str[0]]
-    pairs["Correlation"] = pairs["Correlation"].round(3)
-
-    top_pos = pairs.sort_values(by="Correlation", ascending=False).head(15).reset_index(drop=True)
-    top_neg = pairs.sort_values(by="Correlation", ascending=True).head(15).reset_index(drop=True)
-    return top_pos, top_neg
-
 with st.spinner("Loading multi-season NBA box scores..."):
     df = load_nba_data()
 
+# Sidebar: Slate Scanner Controls
 saved_key = ""
 try:
     saved_key = st.secrets.get("ODDS_API_KEY", "")
 except Exception:
     saved_key = ""
 
-st.sidebar.header("📡 Live Sportsbook Lines")
-if saved_key:
-    st.sidebar.success("API Key connected via Streamlit Secrets")
-    api_key = saved_key
-else:
-    api_key = st.sidebar.text_input("The Odds API Key", type="password", help="Free key at the-odds-api.com")
-
+st.sidebar.header("📡 Live Slate & Model Feed")
+api_key = saved_key if saved_key else st.sidebar.text_input("The Odds API Key", type="password")
 bookmaker = st.sidebar.selectbox("Sportsbook", ["draftkings", "fanduel", "betmgm", "caesars"])
-
-live_props = {}
-default_team_a, default_team_b = "Denver Nuggets", "Phoenix Suns"
 
 if api_key:
     try:
         games = fetch_tonights_nba_games(api_key)
         if games:
             game_labels = {f"{g['away_team']} @ {g['home_team']}": g for g in games}
-            selected_label = st.sidebar.selectbox("Tonight's NBA Slate", list(game_labels.keys()))
-            selected_game = game_labels[selected_label]
-            default_team_a = selected_game["away_team"]
-            default_team_b = selected_game["home_team"]
-
-            if st.sidebar.button("Pull Live Player Props", type="primary"):
-                st.session_state["live_props"] = fetch_game_player_props(api_key, selected_game["id"], bookmaker)
-                st.sidebar.success(f"Loaded props for {len(st.session_state['live_props'])} players!")
-            live_props = st.session_state.get("live_props", {})
+            selected_games = st.sidebar.multiselect(
+                "Games to Scan (Pick 1–4 to save API credits)",
+                list(game_labels.keys()),
+                default=list(game_labels.keys())[:2]
+            )
+            if st.sidebar.button("🚀 Scan Live Props & Build Picks", type="primary"):
+                slate_data = {}
+                with st.spinner("Pulling live sportsbook lines & running projection model..."):
+                    for lbl in selected_games:
+                        g_obj = game_labels[lbl]
+                        slate_data[lbl] = fetch_game_player_props(api_key, g_obj["id"], bookmaker)
+                st.session_state["slate_props"] = slate_data
+                st.sidebar.success(f"Scanned {len(slate_data)} game(s)!")
         else:
             st.sidebar.info("No upcoming NBA games posted right now.")
     except Exception as e:
         st.sidebar.error(f"API Error: {e}")
 
-teams = sorted(df["TEAM_NAME"].dropna().unique())
-c1, c2 = st.columns(2)
-with c1:
-    idx_a = teams.index(default_team_a) if default_team_a in teams else 0
-    team_a = st.selectbox("Team A", teams, index=idx_a)
-with c2:
-    idx_b = teams.index(default_team_b) if default_team_b in teams else 1
-    team_b = st.selectbox("Team B (Opponent)", teams, index=idx_b)
+slate_props = st.session_state.get("slate_props", {})
 
-tab_pricer, tab_scanner = st.tabs(["🎯 Fair-Odds & EV Pricer", "🔍 Top Correlation Scanner"])
+tab_straight, tab_parlays, tab_custom = st.tabs([
+    "🔥 Best Straight Bets (Model)",
+    "⚡ Auto-Parlay Generator (Multi-Game & SGP)",
+    "🎯 Custom SGP Pricer"
+])
 
-with tab_pricer:
+# TAB 1: BEST STRAIGHT BETS
+with tab_straight:
+    st.subheader("Top Model Projections vs. Sportsbook Lines")
+    if not slate_props:
+        st.info("Select games in the left sidebar and click **🚀 Scan Live Props & Build Picks** to generate tonight's straight bets.")
+    else:
+        edges_df = evaluate_straight_edges(df, slate_props)
+        if edges_df.empty:
+            st.warning("No matching player props found for the selected games yet.")
+        else:
+            min_ev = st.slider("Minimum Model EV % Filter", min_value=-5.0, max_value=15.0, value=2.0, step=0.5)
+            filtered = edges_df[edges_df["EV %"] >= min_ev].drop(columns=["NORM_NAME", "Side", "Stat", "Line"])
+            st.dataframe(filtered, use_container_width=True, hide_index=True)
+
+# TAB 2: AUTO-PARLAY GENERATOR (CROSS-GAME + SGP)
+with tab_parlays:
+    if not slate_props:
+        st.info("Click **🚀 Scan Live Props & Build Picks** in the sidebar first to generate automatic parlays.")
+    else:
+        col_multi, col_sgp = st.columns(2)
+
+        with col_multi:
+            st.subheader("🌐 Auto Multi-Game +EV Parlay")
+            st.caption("Combines your top independent model edges across different games (1 leg per game max).")
+            num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
+            edges_df = evaluate_straight_edges(df, slate_props)
+            if not edges_df.empty:
+                # Pick top edge per distinct game so legs are truly independent
+                best_per_game = edges_df.drop_duplicates(subset=["Game"]).head(num_parlay_legs)
+                if len(best_per_game) >= 2:
+                    comb_dec = float(np.prod([american_to_decimal(o) for o in best_per_game["Book Odds"]]))
+                    comb_mod_p = float(np.prod(best_per_game["Model Win %"] / 100.0))
+                    parlay_ev = (comb_mod_p * comb_dec - 1) * 100
+                    parlay_odds = round((comb_dec - 1) * 100) if comb_dec >= 2.0 else round(-100 / (comb_dec - 1))
+
+                    m1, m2 = st.columns(2)
+                    m1.metric("Combined Sportsbook Odds", f"{parlay_odds:+d}")
+                    m2.metric("Projected Parlay EV", f"{parlay_ev:+.1f}%")
+
+                    for idx, row in best_per_game.iterrows():
+                        st.success(f"**{row['Player']} — {row['Pick']}** ({row['Book Odds']:+d}) | Model Proj: **{row['Model Proj']}** | EV: **{row['EV %']:+.1f}%** *({row['Game']})*")
+                else:
+                    st.warning("Select at least 2 games in the sidebar to build a multi-game parlay.")
+
+        with col_sgp:
+            st.subheader("🔗 Auto Correlated Same-Game Parlays")
+            st.caption("Pairs live props tonight with strong historical correlations (boosted true hit rate).")
+            sgp_game = st.selectbox("Select Game for Auto-SGP", list(slate_props.keys()))
+            sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game])
+            if sgp_df.empty:
+                st.warning("No high-correlation live prop pairs found for this game yet.")
+            else:
+                st.dataframe(sgp_df.drop(columns=["Game"]), use_container_width=True, hide_index=True)
+
+# TAB 3: CUSTOM SGP PRICER
+with tab_custom:
+    st.subheader("Manual Multi-Leg SGP Correlation Pricer")
+    teams = sorted(df["TEAM_NAME"].dropna().unique())
+    c1, c2 = st.columns(2)
+    with c1:
+        team_a = st.selectbox("Team A", teams, index=teams.index("Denver Nuggets") if "Denver Nuggets" in teams else 0)
+    with c2:
+        team_b = st.selectbox("Team B (Opponent)", teams, index=teams.index("Phoenix Suns") if "Phoenix Suns" in teams else 1)
+
     matchup_players = sorted(df[df["TEAM_NAME"].isin([team_a, team_b])]["PLAYER_NAME"].dropna().unique())
-    if live_props:
-        active_book_players = [p for p in matchup_players if p in live_props]
-        if active_book_players:
-            matchup_players = active_book_players
-
     stats = ["PTS", "REB", "AST", "FG3M", "STL", "BLK", "TOV"]
     num_legs = st.slider("Number of SGP Legs", min_value=2, max_value=5, value=3)
     legs = []
@@ -226,57 +400,23 @@ with tab_pricer:
     cols = st.columns(num_legs)
     for i in range(num_legs):
         with cols[i]:
-            st.subheader(f"Leg {i+1}")
+            st.markdown(f"**Leg {i+1}**")
             p = st.selectbox("Player", matchup_players, index=min(i, len(matchup_players)-1), key=f"p{i}")
             side = st.radio("Side", ["Over", "Under"], horizontal=True, key=f"side{i}")
             s = st.selectbox("Stat", stats, index=2 if i == 0 else 0, key=f"s{i}")
-
-            prop_info = live_props.get(p, {}).get(s, {})
-            if prop_info:
-                st.info(f"Live {bookmaker.title()} Line: **{prop_info.get('line')}**")
-                default_sel = prop_info.get(side, -115)
-                opp_side = "Under" if side == "Over" else "Over"
-                default_opp = prop_info.get(opp_side, -105)
-            else:
-                default_sel, default_opp = -115, -105
-
-            o = st.number_input("Selected Side Odds", value=int(default_sel), step=5, key=f"o{i}")
-            opp_o = st.number_input("Other Side Odds (0 = auto-est)", value=int(default_opp), step=5, key=f"opp{i}")
+            o = st.number_input("Selected Odds", value=-115, step=5, key=f"o{i}")
+            opp_o = st.number_input("Other Side Odds", value=-105, step=5, key=f"opp{i}")
             legs.append({"player": p, "side": side, "stat": s, "odds": int(o), "opp_odds": int(opp_o)})
 
-    st.divider()
     book_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
-
     if st.button("Calculate Fair Odds & Edge", type="primary"):
         res = price_sgp(df, legs, int(book_odds))
         if "error" in res:
             st.error(res["error"])
         else:
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Shared Games Sample", res["shared_games"])
-            m2.metric("Naive Independent Odds", f"{res['naive_odds']:+d}")
+            m1.metric("Shared Games", res["shared_games"])
+            m2.metric("Naive Odds", f"{res['naive_odds']:+d}")
             m3.metric("TRUE Fair Odds", f"{res['fair_odds']:+d}")
             m4.metric("Expected Value (EV)", f"{res['ev_pct']:+.2f}%")
-
-            st.caption(f"True No-Vig Win Probabilities per Leg: {', '.join(f'{p}%' for p in res['fair_leg_probs'])}")
-
-            if res["ev_pct"] > 0:
-                st.success(f"+EV PLAY DETECTED: Sportsbook is offering {book_odds:+d} vs. fair price of {res['fair_odds']:+d} ({res['ev_pct']:+.2f}% edge).")
-            else:
-                st.warning(f"NEGATIVE EV: Sportsbook correlation tax is costing you {abs(res['ev_pct']):.2f}% in edge.")
-
-            st.subheader("Historical Stat Correlation Matrix")
             st.dataframe(res["corr_df"], use_container_width=True)
-
-with tab_scanner:
-    st.subheader(f"Strongest Historical Correlations: {team_a} vs. {team_b}")
-    min_g = st.slider("Minimum Shared Games Sample", min_value=10, max_value=50, value=20)
-    if st.button("Scan Matchup Pairs", type="primary"):
-        pos_df, neg_df = scan_matchup_correlations(df, team_a, team_b, min_games=min_g)
-        col_pos, col_neg = st.columns(2)
-        with col_pos:
-            st.markdown("**📈 Top Positive Stacks (Pair Over + Over or Under + Under)**")
-            st.dataframe(pos_df, use_container_width=True)
-        with col_neg:
-            st.markdown("**📉 Top Negative Fades (Pair Over + Under)**")
-            st.dataframe(neg_df, use_container_width=True)
