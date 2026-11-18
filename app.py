@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · Alternate Line & Swap Engine · Terminal"
+BRAND_SUBTITLE = "NBA Prop Projections · Edge Engine · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -873,7 +873,6 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
                             norm_p = normalize_name(player)
                             p_obj = candidates.setdefault(norm_p, {"display_name": player, "stats": {}})
                             st_obj = p_obj["stats"].setdefault(stat_code, {})
-                            # Store all alternate lines if available
                             line_obj = st_obj.setdefault(float(line), {})
                             line_obj[side] = int(price)
 
@@ -887,13 +886,12 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
                     two_way = [(ln, sides) for ln, sides in lines_dict.items() if "Over" in sides and "Under" in sides]
                     if not two_way:
                         continue
-                    # Keep main line as closest to -110, plus retain alternate thresholds
+                    # Pick strictly the main market line (closest to -110)
                     best_ln, best_sides = min(two_way, key=lambda item: abs(item[1]["Over"] + 110) + abs(item[1]["Under"] + 110))
                     clean_stats[stat_code] = {
                         "line": best_ln,
                         "Over": best_sides["Over"],
                         "Under": best_sides["Under"],
-                        "alternates": two_way # Alternate lines support
                     }
                 if clean_stats:
                     props[norm_p] = {"display_name": p_obj["display_name"], "stats": clean_stats}
@@ -1017,9 +1015,9 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             usage_mult = team_usage_bump.get(player_team, 1.0)
 
             for stat, info in p_data["stats"].items():
-                if stat not in p_df.columns:
+                if stat not in p_df.columns or "Over" not in info or "Under" not in info:
                     continue
-                
+                line = info["line"]
                 valid_df = p_df[["MIN", stat]].dropna().tail(50)
                 if len(valid_df) < 12:
                     continue
@@ -1034,60 +1032,54 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 damp_dvp = 1.0 + 0.65 * (raw_dvp - 1.0)
                 total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult
                 proj = base_proj * total_env_mult
+
                 std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
+                model_over = skewed_prob_over(line, proj, std, valid_df[stat])
+                model_under = 1.0 - model_over
 
-                # Process main line and alternate lines
-                alternates = info.get("alternates", [(info["line"], {"Over": info["Over"], "Under": info["Under"]})])
-                
-                for alt_line, sides in alternates:
-                    for side in ("Over", "Under"):
-                        if side not in sides:
-                            continue
-                        odds = sides[side]
-                        if side == "Over":
-                            mod_p = skewed_prob_over(alt_line, proj, std, valid_df[stat])
-                        else:
-                            mod_p = 1.0 - skewed_prob_over(alt_line, proj, std, valid_df[stat])
+                nv_over = get_no_vig_prob(info["Over"], info["Under"])
+                nv_under = get_no_vig_prob(info["Under"], info["Over"])
 
-                        opp_side = "Under" if side == "Over" else "Over"
-                        opp_odds = sides.get(opp_side, -110)
-                        nv_p = get_no_vig_prob(odds, opp_odds)
-                        edge_pct = (mod_p - nv_p) * 100
+                for side, mod_p, nv_p, odds in [
+                    ("Over", model_over, nv_over, info["Over"]),
+                    ("Under", model_under, nv_under, info["Under"]),
+                ]:
+                    dec = american_to_decimal(odds)
+                    edge_pct = (mod_p - nv_p) * 100
+                    rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
+                    rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
 
-                        rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
-                        rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
+                    matchup_fit = 1.0
+                    if "Smash" in rating_txt or "Favorable" in rating_txt:
+                        matchup_fit = 1.35 if side == "Over" else 0.45
+                    elif "Tough" in rating_txt:
+                        matchup_fit = 1.35 if side == "Under" else 0.45
 
-                        matchup_fit = 1.0
-                        if "Smash" in rating_txt or "Favorable" in rating_txt:
-                            matchup_fit = 1.35 if side == "Over" else 0.45
-                        elif "Tough" in rating_txt:
-                            matchup_fit = 1.35 if side == "Under" else 0.45
+                    blended_score = mod_p * matchup_fit
 
-                        blended_score = mod_p * matchup_fit
-
-                        rows.append({
-                            "Player": p_data["display_name"],
-                            "NORM_NAME": norm_p,
-                            "Pos": raw_pos,
-                            "PosGroup": pos_group,
-                            "InjStatus": inj_rec.get("status", ""),
-                            "Headshot": headshot_url,
-                            "TeamLogo": team_logo_url,
-                            "Line": f"{side} {alt_line} {stat}",
-                            "RawLine": float(alt_line),
-                            "Side": side,
-                            "Stat": stat,
-                            "Projection": round(float(proj), 1),
-                            "Matchup": short_matchup(game_label),
-                            "FullMatchup": game_label,
-                            "OppTeam": opp_team,
-                            "Matchup Rating": rating_txt,
-                            "RatingClass": rating_cls,
-                            "Odds": int(odds),
-                            "Win Prob": round(float(mod_p * 100), 1),
-                            "Edge": round(float(edge_pct), 1),
-                            "BlendedScore": blended_score,
-                        })
+                    rows.append({
+                        "Player": p_data["display_name"],
+                        "NORM_NAME": norm_p,
+                        "Pos": raw_pos,
+                        "PosGroup": pos_group,
+                        "InjStatus": inj_rec.get("status", ""),
+                        "Headshot": headshot_url,
+                        "TeamLogo": team_logo_url,
+                        "Line": f"{side} {line} {stat}",
+                        "RawLine": float(line),
+                        "Side": side,
+                        "Stat": stat,
+                        "Projection": round(float(proj), 1),
+                        "Matchup": short_matchup(game_label),
+                        "FullMatchup": game_label,
+                        "OppTeam": opp_team,
+                        "Matchup Rating": rating_txt,
+                        "RatingClass": rating_cls,
+                        "Odds": int(odds),
+                        "Win Prob": round(float(mod_p * 100), 1),
+                        "Edge": round(float(edge_pct), 1),
+                        "BlendedScore": blended_score,
+                    })
 
     if not rows:
         return pd.DataFrame()
@@ -1354,16 +1346,16 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, locked_labels: list, max_legs: int = 6, exclude_norms: list = None):
+def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, locked_labels: list, max_legs: int = 5, exclude_norms: list = None):
     if edges_df.empty:
         return pd.DataFrame(), 0, 0.0, "No active props available."
 
     if exclude_norms is None:
         exclude_norms = []
 
-    target_dec = american_to_decimal(target_american_odds) if target_american_odds != 0 else 2.0
+    target_dec = american_to_decimal(target_american_odds) if target_american_odds != 0 else 3.0
     if target_dec <= 1.01:
-        target_dec = 1.50
+        target_dec = 2.0
 
     pool = edges_df.copy()
     pool["PickLabel"] = pool["Player"] + " — " + pool["Line"] + " (" + pool["Odds"].apply(lambda x: f"{x:+d}") + ")"
@@ -1373,6 +1365,7 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
     used_games = set()
     current_dec = 1.0
 
+    # 1. Lock in user's chosen anchor legs first
     for lbl in locked_labels:
         match = pool[pool["PickLabel"] == lbl]
         if not match.empty:
@@ -1382,6 +1375,7 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
             used_games.add(row["FullMatchup"])
             current_dec *= american_to_decimal(int(row["Odds"]))
 
+    # 2. Filter candidates: high win prob, not excluded, different games, prefer plus-money or fair odds
     candidates = pool[
         (~pool["NORM_NAME"].isin(used_players)) &
         (~pool["NORM_NAME"].isin(exclude_norms)) &
@@ -1391,6 +1385,7 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
 
     candidates = candidates.drop_duplicates(subset=["FullMatchup"])
 
+    # 3. Greedily add legs until target decimal odds are reached, but STRICTLY cap leg count to prevent heavy chalk (-1000+)
     for _, cand in candidates.iterrows():
         if current_dec >= target_dec or len(selected_rows) >= max_legs:
             break
@@ -1408,7 +1403,7 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
 
     status_msg = ""
     if current_dec < target_dec:
-        status_msg = f"Reached {final_american:+d} across {len(res_df)} distinct games (highest available safe slate odds)."
+        status_msg = f"Reached {final_american:+d} across {len(res_df)} distinct games."
 
     return res_df, final_american, round(comb_prob, 1), status_msg
 
@@ -2092,7 +2087,6 @@ with tab_parlays:
                 key="parlay_locked_multiselect"
             )
 
-            # Initialize swapped / excluded norms session state
             if "parlay_swapped_norms" not in st.session_state:
                 st.session_state["parlay_swapped_norms"] = []
 
