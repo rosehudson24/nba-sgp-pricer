@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · Vegas-Anchored Edge Engine · Analytics Terminal"
+BRAND_SUBTITLE = "NBA Prop Projections · Quant Edge Engine · CLV Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -974,8 +974,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_total = g_line_info["total"]
         abs_spread = abs(g_line_info["spread_home"])
 
-        # Vegas-First Pace & Scoring Environment Scaling
-        vegas_pace_mult = max(0.92, min(1.15, vegas_total / 228.0))
+        # Independent Edge Divergence Engine: Pacing derived from historical stats blended gently with Vegas
+        vegas_pace_mult = 1.0 + 0.25 * ((vegas_total - 228.0) / 228.0)
 
         for norm_p, p_data in game_props.items():
             inj_rec = injury_map.get(norm_p, {})
@@ -1026,18 +1026,14 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
                 season_rate = float(np.mean(per_min_rates))
                 recent_rate = exp_weighted_mean(per_min_rates, decay=0.94)
-                blended_rate = 0.60 * season_rate + 0.40 * recent_rate
+                blended_rate = 0.70 * season_rate + 0.30 * recent_rate
 
                 base_proj = blended_rate * proj_min
 
                 raw_dvp = opp_pos_mults.get(stat, 1.0)
-                damp_dvp = 1.0 + 0.60 * (raw_dvp - 1.0)
+                damp_dvp = 1.0 + 0.65 * (raw_dvp - 1.0)
                 total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult
                 proj = base_proj * total_env_mult
-
-                # Ensure player projections dynamically scale towards elevated Vegas totals
-                if vegas_total > 230.0:
-                    proj *= (vegas_total / 228.0) ** 0.55
 
                 std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
                 model_over = skewed_prob_over(line, proj, std, valid_df[stat])
@@ -1159,7 +1155,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
                 rates = (p_sub[st_col] / p_sub["MIN"]).values
                 season_r = float(np.mean(rates))
                 recent_r = exp_weighted_mean(rates, decay=0.94)
-                blended_r = 0.60 * season_r + 0.40 * recent_r
+                blended_r = 0.70 * season_r + 0.30 * recent_r
                 base = blended_r * mins
                 mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * (vegas_total / 228.0) * loc_mult * b2b_mult
                 mean_val = float(base * mult)
@@ -1217,14 +1213,14 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
 
         raw_team_sim = sim_pts_matrix.sum(axis=1)
         
-        # Rigorous Vegas-First Anchoring for Team Totals
+        # Balanced Edge-Seeking Blend: 50% Historical Team Stats + 50% Vegas Implied Total
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
-        expected_team_pts = 0.15 * team_game_pts.get(team, lg_avg_pts) + 0.85 * vegas_implied
-        expected_team_pts = max(108.0, expected_team_pts)
+        expected_team_pts = 0.50 * team_game_pts.get(team, lg_avg_pts) + 0.50 * vegas_implied
+        expected_team_pts = max(104.0, expected_team_pts)
 
         shift = expected_team_pts - float(np.mean(raw_team_sim))
         calibrated_scores = raw_team_sim + shift
-        calibrated_scores = np.maximum(104.0, calibrated_scores)
+        calibrated_scores = np.maximum(100.0, calibrated_scores)
         return calibrated_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
@@ -2093,7 +2089,7 @@ with tab_custom:
             opp_o = st.number_input("Other Side Odds", value=-105, step=5, key=f"opp{i}")
             legs.append({"player": p, "side": side, "stat": s, "odds": int(o), "opp_odds": int(opp_o)})
 
-    box_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
+    book_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
     if st.button("Price Custom SGP", type="primary"):
         res = price_sgp(df, legs, int(book_odds))
         if "error" in res:
