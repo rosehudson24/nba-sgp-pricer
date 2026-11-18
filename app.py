@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · Quant Edge Engine · CLV Analytics Terminal"
+BRAND_SUBTITLE = "NBA Prop Projections · Vegas-Anchored Edge Engine · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -974,7 +974,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_total = g_line_info["total"]
         abs_spread = abs(g_line_info["spread_home"])
 
-        # Independent Edge Divergence Engine: Pacing derived from historical stats blended gently with Vegas
         vegas_pace_mult = 1.0 + 0.25 * ((vegas_total - 228.0) / 228.0)
 
         for norm_p, p_data in game_props.items():
@@ -1213,7 +1212,6 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
 
         raw_team_sim = sim_pts_matrix.sum(axis=1)
         
-        # Balanced Edge-Seeking Blend: 50% Historical Team Stats + 50% Vegas Implied Total
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
         expected_team_pts = 0.50 * team_game_pts.get(team, lg_avg_pts) + 0.50 * vegas_implied
         expected_team_pts = max(104.0, expected_team_pts)
@@ -1355,6 +1353,60 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "fair_prob": joint_prob,
         "ev_pct": ev_pct
     }
+
+def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, locked_labels: list, max_legs: int = 6):
+    if edges_df.empty:
+        return pd.DataFrame(), 0, 0.0, "No active props available."
+
+    target_dec = american_to_decimal(target_american_odds) if target_american_odds != 0 else 2.0
+    if target_dec <= 1.01:
+        target_dec = 1.50
+
+    pool = edges_df.copy()
+    pool["PickLabel"] = pool["Player"] + " — " + pool["Line"] + " (" + pool["Odds"].apply(lambda x: f"{x:+d}") + ")"
+
+    selected_rows = []
+    used_players = set()
+    used_games = set()
+    current_dec = 1.0
+
+    for lbl in locked_labels:
+        match = pool[pool["PickLabel"] == lbl]
+        if not match.empty:
+            row = match.iloc[0]
+            selected_rows.append(row)
+            used_players.add(row["NORM_NAME"])
+            used_games.add(row["FullMatchup"])
+            current_dec *= american_to_decimal(int(row["Odds"]))
+
+    candidates = pool[
+        (~pool["NORM_NAME"].isin(used_players)) &
+        (~pool["FullMatchup"].isin(used_games)) &
+        (pool["Win Prob"] >= 53.0)
+    ].sort_values(by=["BlendedScore", "Win Prob"], ascending=False)
+
+    candidates = candidates.drop_duplicates(subset=["FullMatchup"])
+
+    for _, cand in candidates.iterrows():
+        if current_dec >= target_dec or len(selected_rows) >= max_legs:
+            break
+        selected_rows.append(cand)
+        used_players.add(cand["NORM_NAME"])
+        used_games.add(cand["FullMatchup"])
+        current_dec *= american_to_decimal(int(cand["Odds"]))
+
+    if not selected_rows:
+        return pd.DataFrame(), 0, 0.0, "Could not build a parlay with current filters."
+
+    res_df = pd.DataFrame(selected_rows)
+    comb_prob = float(np.prod(res_df["Win Prob"] / 100.0)) * 100.0
+    final_american = round((current_dec - 1) * 100) if current_dec >= 2.0 else round(-100 / (current_dec - 1))
+
+    status_msg = ""
+    if current_dec < target_dec:
+        status_msg = f"Reached {final_american:+d} across {len(res_df)} distinct games (highest available safe slate odds)."
+
+    return res_df, final_american, round(comb_prob, 1), status_msg
 
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, book: str = "draftkings", from_game: str = ""):
     if source_df.empty:
@@ -1878,7 +1930,7 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (PROJECTIONS VS OVERS VS UNDERS)
+# TAB 1: TOP STRAIGHT BETS
 # =========================================================
 with tab_straight:
     if not slate_props:
@@ -1996,50 +2048,85 @@ with tab_slate:
                 st.rerun()
 
 # =========================================================
-# TAB 3: AUTO-PARLAY BUILDER
+# TAB 3: PARLAY OPTIMIZER & SGP BUILDER
 # =========================================================
 with tab_parlays:
-    if not slate_props:
-        st.info("Auto-parlays lock in automatically as soon as pre-game player props open for the slate.")
+    if not slate_props or edges_df.empty:
+        st.info("Parlay optimizer unlocks automatically as soon as pre-game player props open for the slate.")
     else:
-        col_multi, col_sgp = st.columns(2, gap="large")
+        col_multi, col_sgp = st.columns([1.25, 1.0], gap="large")
 
         with col_multi:
-            st.markdown("##### Cross-Game +EV Parlay")
-            st.caption("Combines the highest win-probability active model props from each pre-game matchup.")
-            num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
-            if not edges_df.empty:
-                best_per_game = edges_df.drop_duplicates(subset=["FullMatchup"]).head(num_parlay_legs)
-                if len(best_per_game) >= 2:
-                    comb_dec = float(np.prod([american_to_decimal(o) for o in best_per_game["Odds"]]))
-                    comb_mod_p = float(np.prod(best_per_game["Win Prob"] / 100.0))
-                    parlay_odds = round((comb_dec - 1) * 100) if comb_dec >= 2.0 else round(-100 / (comb_dec - 1))
+            st.markdown("##### 🎯 Target Odds & Leg-Lock Parlay Builder")
+            st.caption("Set your payout goal, optionally lock in your favorite play(s), and let the model fill the rest with high-probability legs.")
 
-                    m1, m2 = st.columns(2)
-                    m1.metric("Combined Odds", f"{parlay_odds:+d}")
-                    m2.metric("Combined Win Prob", f"{comb_mod_p*100:.1f}%")
-
-                    slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg Parlay | {parlay_odds:+d})"]
-                    for _, row in best_per_game.iterrows():
-                        slip_lines.append(f"- {row['Player']} | {row['Line']} ({row['Odds']:+d})")
-                        p_badge = player_badge_html(
-                            row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""),
-                            book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
-                        )
-                        st.markdown(
-                            f'<div class="pick-card"><div class="pick-top">{p_badge}<span class="line-cell">{row["Odds"]:+d}</span></div>'
-                            f'<div class="pick-line">{row["Line"]}</div>'
-                            f'<div class="pick-details">Proj: <b>{row["Projection"]}</b> · Rating: <b>{row["Matchup Rating"]}</b> · Win %: <b>{row["Win Prob"]:.0f}%</b></div></div>',
-                            unsafe_allow_html=True
-                        )
-
-                    with st.expander("Copy Parlay Slip", icon=":material/content_copy:"):
-                        st.code("\n".join(slip_lines), language=None)
+            opt_c1, opt_c2 = st.columns([1.1, 1.0])
+            with opt_c1:
+                odds_preset = st.selectbox(
+                    "Target Payout Preset",
+                    ["+200 (2x Doubler)", "+400 (4x Builder)", "+600 (6x Value)", "+1000 (10x Lotto)", "Custom Odds..."],
+                    index=1
+                )
+            with opt_c2:
+                if odds_preset == "Custom Odds...":
+                    target_odds = st.number_input("Minimum American Odds (+)", min_value=100, max_value=10000, value=500, step=50)
                 else:
-                    st.warning("At least 2 pre-game matchups with active props are needed to build a cross-game parlay.")
+                    target_odds = int(odds_preset.split()[0].replace("+", ""))
+                    max_legs_cap = st.slider("Max Parlay Legs", min_value=2, max_value=7, value=5)
+
+            if odds_preset == "Custom Odds...":
+                max_legs_cap = st.slider("Max Parlay Legs", min_value=2, max_value=7, value=5)
+
+            lock_pool = edges_df.sort_values(by="BlendedScore", ascending=False).copy()
+            lock_pool["PickLabel"] = lock_pool["Player"] + " — " + lock_pool["Line"] + " (" + lock_pool["Odds"].apply(lambda x: f"{x:+d}") + ")"
+            lock_options = lock_pool["PickLabel"].unique().tolist()
+
+            locked_plays = st.multiselect(
+                "🔒 Lock In Play(s) (Optional)",
+                options=lock_options,
+                placeholder="Search & lock any player prop you want to build around..."
+            )
+
+            opt_df, final_odds, comb_win_prob, warn_msg = optimize_parlay_legs(
+                edges_df,
+                target_american_odds=int(target_odds),
+                locked_labels=locked_plays,
+                max_legs=int(max_legs_cap)
+            )
+
+            if warn_msg:
+                st.caption(f"ℹ️ {warn_msg}")
+
+            if not opt_df.empty:
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Final Parlay Odds", f"{final_odds:+d}", f"Target: {target_odds:+d}")
+                m2.metric("Parlay Size", f"{len(opt_df)} Legs", f"{len(locked_plays)} Locked")
+                m3.metric("Model Hit Prob", f"{comb_win_prob:.1f}%", f"Implied: {american_to_prob(final_odds)*100:.1f}%")
+
+                slip_lines = [f"{BRAND_NAME} ({len(opt_df)}-Leg Optimized Parlay | {final_odds:+d})"]
+                for _, row in opt_df.iterrows():
+                    is_locked = row["PickLabel"] in locked_plays
+                    lock_tag = '<span class="inj-q-pill" style="background:rgba(16,185,129,0.18); color:#34D399; border-color:rgba(16,185,129,0.4);">🔒 LOCKED</span>' if is_locked else '<span class="pos-pill">✨ AI PICK</span>'
+                    slip_lines.append(f"- {'[LOCKED] ' if is_locked else ''}{row['Player']} | {row['Line']} ({row['Odds']:+d})")
+
+                    p_badge = player_badge_html(
+                        row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""),
+                        book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
+                    )
+                    st.markdown(
+                        f'<div class="pick-card">'
+                        f'<div class="pick-top">{p_badge}<div style="display:flex; align-items:center; gap:6px;">{lock_tag}<span class="line-cell">{row["Odds"]:+d}</span></div></div>'
+                        f'<div class="pick-line">{row["Line"]}</div>'
+                        f'<div class="pick-details">Proj: <b>{row["Projection"]}</b> · Matchup: <b>{row["Matchup Rating"]}</b> · Win Prob: <b>{row["Win Prob"]:.0f}%</b></div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+
+                with st.expander("📋 Copy Parlay Slip", icon=":material/content_copy:"):
+                    st.code("\n".join(slip_lines), language=None)
 
         with col_sgp:
-            st.markdown("##### Correlated Same-Game Parlays")
+            st.markdown("##### ⚡ Correlated Same-Game Parlays")
             st.caption("Pairs active pre-game lines with strong historical game-log correlations.")
             sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()))
             sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game], injury_map)
