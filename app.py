@@ -1047,6 +1047,21 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
                     rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
 
+                    # Matchup Alignment check: penalize Under in Smash / Favorable spots
+                    matchup_fit = 1.0
+                    if "Smash" in rating_txt or "Favorable" in rating_txt:
+                        if side == "Under":
+                            matchup_fit = 0.65 # Penalize Unders in Smash spots
+                        else:
+                            matchup_fit = 1.25 # Reward Overs in Smash spots
+                    elif "Tough" in rating_txt:
+                        if side == "Over":
+                            matchup_fit = 0.65 # Penalize Overs in Tough spots
+                        else:
+                            matchup_fit = 1.25 # Reward Unders in Tough spots
+
+                    blended_score = mod_p * matchup_fit
+
                     rows.append({
                         "Player": p_data["display_name"],
                         "NORM_NAME": norm_p,
@@ -1068,11 +1083,12 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         "Odds": int(odds),
                         "Win Prob": round(float(mod_p * 100), 1),
                         "Edge": round(float(edge_pct), 1),
+                        "BlendedScore": blended_score,
                     })
 
     if not rows:
         return pd.DataFrame()
-    return pd.DataFrame(rows).sort_values(by="Win Prob", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(rows).sort_values(by="BlendedScore", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, out_players_key: tuple = (), n_sims: int = 15000):
@@ -1194,12 +1210,15 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         tm_off = team_game_pts.get(team, lg_avg_pts)
         opp_def = opp_game_pts.get(opp, lg_avg_pts)
         expected_team_pts = ((tm_off + opp_def) / 2.0) * (1.015 if is_home else 0.985)
-        if vegas_spread_home != 0.0:
-            vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
-            expected_team_pts = 0.55 * expected_team_pts + 0.45 * vegas_implied
+        
+        # Strictly anchor team totals to Vegas game total (ensuring realistic scoring floor >= 104 pts)
+        vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
+        expected_team_pts = 0.35 * expected_team_pts + 0.65 * vegas_implied
+        expected_team_pts = max(104.0, expected_team_pts)
 
         shift = expected_team_pts - float(np.mean(raw_team_sim))
-        calibrated_scores = raw_team_sim + (0.45 * shift)
+        calibrated_scores = raw_team_sim + shift
+        calibrated_scores = np.maximum(100.0, calibrated_scores) # Absolute scoring floor
         return calibrated_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
@@ -1781,7 +1800,7 @@ if target_game and "@" in target_game:
     st.stop()
 
 # =========================================================
-# MAIN DASHBOARD VIEW (SLATE-FIRST)
+# MAIN DASHBOARD VIEW
 # =========================================================
 ctrl_c1, ctrl_c2, ctrl_c3 = st.columns([1.2, 2.6, 0.8], vertical_alignment="bottom")
 with ctrl_c1:
@@ -1817,15 +1836,32 @@ kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-# Streamlined 3-Tab Layout (No More Noisy Straight Bets Board)
-tab_slate, tab_parlays, tab_custom = st.tabs([
+# Restored 4-Tab Layout (Top Straight Bets is Tab 1)
+tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
+    ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Slate & Matchup Projections",
     ":material/bolt: Auto-Parlay Builder",
     ":material/tune: Custom SGP Lab"
 ])
 
 # =========================================================
-# TAB 1: SLATE & MATCHUP PROJECTIONS (DEFAULT LANDING)
+# TAB 1: TOP STRAIGHT BETS (FIXED MATCHUP LOGIC)
+# =========================================================
+with tab_straight:
+    if not slate_props:
+        st.info("Top straight bets lock in automatically as soon as pre-game player props open for the slate.")
+    elif edges_df.empty:
+        st.warning("No pre-game props available for evaluation yet.")
+    else:
+        bk = st.session_state["selected_book"]
+        render_clean_prop_board(edges_df[edges_df["Stat"] == "PTS"].head(10), "Points Props (PTS) — Top Model Edges", "No PTS lines available.", book=bk)
+        render_clean_prop_board(edges_df[edges_df["Stat"] == "REB"].head(10), "Rebounds Props (REB) — Top Model Edges", "No REB lines available.", book=bk)
+        render_clean_prop_board(edges_df[edges_df["Stat"] == "AST"].head(10), "Assists Props (AST) — Top Model Edges", "No AST lines available.", book=bk)
+        render_clean_prop_board(edges_df[edges_df["Stat"] == "FG3M"].head(10), "3-Pointers Made (3PM) — Top Model Edges", "No 3PM lines available.", book=bk)
+        render_clean_prop_board(edges_df[edges_df["Stat"] == "PRA"].head(10), "PRA Props — Top Model Edges", "No PRA lines available.", book=bk)
+
+# =========================================================
+# TAB 2: SLATE & MATCHUP PROJECTIONS
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores & Matchups")
@@ -1844,7 +1880,6 @@ with tab_slate:
             continue
         away_t, home_t = parts[0], parts[1]
         
-        # Apply search filter if active
         if search_player.strip() and not (search_player.strip().lower() in away_t.lower() or search_player.strip().lower() in home_t.lower()):
             continue
 
@@ -1876,7 +1911,7 @@ with tab_slate:
                 st.rerun()
 
 # =========================================================
-# TAB 2: AUTO-PARLAY BUILDER
+# TAB 3: AUTO-PARLAY BUILDER
 # =========================================================
 with tab_parlays:
     if not slate_props:
@@ -1941,7 +1976,7 @@ with tab_parlays:
                 )
 
 # =========================================================
-# TAB 3: CUSTOM SGP LAB
+# TAB 4: CUSTOM SGP LAB
 # =========================================================
 with tab_custom:
     st.markdown("##### Custom Multi-Leg SGP Correlation Pricer")
