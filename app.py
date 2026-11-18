@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · +EV Parlay Engine · Monte Carlo Matchup Simulator"
+BRAND_SUBTITLE = "NBA Prop Projections · Monte Carlo Matchup Simulator · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -250,21 +250,6 @@ table.prop-table tr:hover td { background: #161E30; }
 .col-right { text-align: right !important; }
 .line-cell { font-weight: 600; color: #38BDF8; }
 .proj-cell { font-weight: 700; color: #F8FAFC; }
-.ev-pos {
-    display: inline-block;
-    background: rgba(16, 185, 129, 0.15);
-    color: #34D399;
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    padding: 1px 6px;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.73rem;
-}
-.ev-neg {
-    color: #94A3B8;
-    font-weight: 500;
-    font-size: 0.75rem;
-}
 .rating-good { color: #34D399; font-weight: 600; }
 .rating-bad { color: #F87171; font-weight: 600; }
 .rating-neutral { color: #94A3B8; }
@@ -802,7 +787,6 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
 
 @st.cache_data(ttl=600)
 def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int = 12):
-    """Pulls schedule, spreads, totals, and bulk player props from PropLine SDK."""
     et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(et_tz)
@@ -853,13 +837,11 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
 
             odds_data = pl_client.get_odds("basketball_nba", event_id=event_id, markets=market_list)
             
-            # Extract Spreads & Totals
             spread_home = 0.0
             total_line = 228.0
             candidates = {}
 
             for book in odds_data.get("bookmakers", []):
-                # Optionally filter by selected bookmaker if desired, or aggregate across books
                 for market in book.get("markets", []):
                     m_key = market.get("key")
                     if m_key == "spreads":
@@ -1061,7 +1043,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     ("Under", model_under, nv_under, info["Under"]),
                 ]:
                     dec = american_to_decimal(odds)
-                    ev_pct = (mod_p * dec - 1) * 100
                     edge_pct = (mod_p - nv_p) * 100
                     rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
                     rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
@@ -1087,12 +1068,11 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         "Odds": int(odds),
                         "Win Prob": round(float(mod_p * 100), 1),
                         "Edge": round(float(edge_pct), 1),
-                        "EV": round(float(ev_pct), 1),
                     })
 
     if not rows:
         return pd.DataFrame()
-    return pd.DataFrame(rows).sort_values(by="EV", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(rows).sort_values(by="Win Prob", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, out_players_key: tuple = (), n_sims: int = 15000):
@@ -1367,38 +1347,34 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
 
     rows_html = []
     for _, r in source_df.iterrows():
-        ev_val = r["EV"]
-        ev_html = f'<span class="ev-pos">{ev_val:+.1f}%</span>' if ev_val > 0 else f'<span class="ev-neg">{ev_val:+.1f}%</span>'
         p_cell = player_badge_html(
             r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""),
             book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
         )
         rows_html.append(
             f'<tr>'
-            f'<td style="width:24%;">{p_cell}</td>'
-            f'<td style="width:14%;" class="line-cell">{r["Line"]}</td>'
-            f'<td style="width:8%;" class="proj-cell col-right">{r["Projection"]:.1f}</td>'
-            f'<td style="width:12%;">{r["Matchup"]}</td>'
-            f'<td style="width:17%;" class="{r["RatingClass"]}">{r["Matchup Rating"]}</td>'
+            f'<td style="width:28%;">{p_cell}</td>'
+            f'<td style="width:16%;" class="line-cell">{r["Line"]}</td>'
+            f'<td style="width:10%;" class="proj-cell col-right">{r["Projection"]:.1f}</td>'
+            f'<td style="width:14%;">{r["Matchup"]}</td>'
+            f'<td style="width:18%;" class="{r["RatingClass"]}">{r["Matchup Rating"]}</td>'
             f'<td style="width:8%;" class="col-right">{r["Odds"]:+d}</td>'
-            f'<td style="width:7%;" class="col-right">{r["Win Prob"]:.0f}%</td>'
-            f'<td style="width:10%;" class="col-right">{ev_html}</td>'
+            f'<td style="width:6%;" class="proj-cell col-right">{r["Win Prob"]:.0f}%</td>'
             f'</tr>'
         )
 
     table_html = (
         f'<div class="board-card">'
-        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">{len(source_df)} Plays · Click Player</span></div>'
+        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">{len(source_df)} Props · Click Player</span></div>'
         f'<div class="table-scroll-wrap"><table class="prop-table">'
         f'<thead><tr>'
-        f'<th style="width:24%;">Player</th>'
-        f'<th style="width:14%;">Pre-Game Line</th>'
-        f'<th style="width:8%;" class="col-right">Proj</th>'
-        f'<th style="width:12%;">Matchup</th>'
-        f'<th style="width:17%;">DvP Rating</th>'
+        f'<th style="width:28%;">Player</th>'
+        f'<th style="width:16%;">Line</th>'
+        f'<th style="width:10%;" class="col-right">Proj</th>'
+        f'<th style="width:14%;">Matchup</th>'
+        f'<th style="width:18%;">DvP Rating</th>'
         f'<th style="width:8%;" class="col-right">Odds</th>'
-        f'<th style="width:7%;" class="col-right">Win %</th>'
-        f'<th style="width:10%;" class="col-right">EV %</th>'
+        f'<th style="width:6%;" class="col-right">Win %</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         f'</table></div></div>'
@@ -1788,7 +1764,7 @@ if target_game and "@" in target_game:
     st.markdown(f"##### Locked Pre-Game Player Lines & DvP Matchup Ratings — {away_sel} @ {home_sel}")
     game_props_df = edges_df[edges_df["FullMatchup"] == target_game] if not edges_df.empty else pd.DataFrame()
     if not game_props_df.empty:
-        game_props_df = game_props_df.drop_duplicates(subset=["Player", "Stat"]).sort_values(by=["Stat", "EV"], ascending=[True, False])
+        game_props_df = game_props_df.drop_duplicates(subset=["Player", "Stat"]).sort_values(by=["Stat", "Win Prob"], ascending=[True, False])
     render_clean_prop_board(
         game_props_df,
         f"{away_sel} @ {home_sel} — Pre-Game Lines, Projections & DvP Ratings",
@@ -1805,9 +1781,9 @@ if target_game and "@" in target_game:
     st.stop()
 
 # =========================================================
-# MAIN DASHBOARD VIEW
+# MAIN DASHBOARD VIEW (SLATE-FIRST)
 # =========================================================
-ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.1, 1.5, 1.8, 0.7], vertical_alignment="bottom")
+ctrl_c1, ctrl_c2, ctrl_c3 = st.columns([1.2, 2.6, 0.8], vertical_alignment="bottom")
 with ctrl_c1:
     bookmaker = st.selectbox(
         "Sportsbook",
@@ -1820,22 +1796,12 @@ with ctrl_c1:
         st.query_params["book"] = bookmaker
         st.rerun()
 with ctrl_c2:
-    min_ev = st.slider("Minimum EV %", min_value=-15.0, max_value=15.0, value=-10.0, step=0.5)
-with ctrl_c3:
     search_player = st.text_input("Search", placeholder="Filter by player or team...")
-with ctrl_c4:
+with ctrl_c3:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
         fetch_and_lock_propline_slate.clear()
         fetch_nba_injury_report.clear()
         st.rerun()
-
-filtered = edges_df[edges_df["EV"] >= min_ev] if not edges_df.empty else pd.DataFrame()
-if not filtered.empty and search_player.strip():
-    q = search_player.strip()
-    filtered = filtered[
-        filtered["Player"].str.contains(q, case=False, na=False) |
-        filtered["FullMatchup"].str.contains(q, case=False, na=False)
-    ]
 
 slate_teams = set()
 for g_lbl in all_game_labels:
@@ -1845,44 +1811,25 @@ slate_outs_count = sum(len(v) for k, v in team_out_lists.items() if k in slate_t
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 kpi1.metric(f"Today's Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
-kpi2.metric("Active Pre-Game Props", f"{len(filtered)} Lines")
+kpi2.metric("Active Pre-Game Props", f"{len(edges_df)} Lines")
 kpi3.metric("Ruled Out (Filtered)", f"{slate_outs_count} Players")
 kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
-    ":material/local_fire_department: Top Straight Bets",
-    ":material/scoreboard: Slate & Projected Box Scores",
+# Streamlined 3-Tab Layout (No More Noisy Straight Bets Board)
+tab_slate, tab_parlays, tab_custom = st.tabs([
+    ":material/scoreboard: Slate & Matchup Projections",
     ":material/bolt: Auto-Parlay Builder",
     ":material/tune: Custom SGP Lab"
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS
-# =========================================================
-with tab_straight:
-    if not slate_props:
-        st.info(
-            f"All games on {slate_date_label} tipped off before today's pre-game snapshot vault was initialized. "
-            f"Starting at midnight ET tonight, every pre-game line automatically locks into the daily vault before tip-off and stays visible all night."
-        )
-    elif filtered.empty:
-        st.warning(f"No lines match your current filter ({min_ev:+.1f}% EV). Lower the Minimum EV slider above to view all posted props.")
-    else:
-        bk = st.session_state["selected_book"]
-        render_clean_prop_board(filtered[filtered["Stat"] == "PTS"].head(10), "Points Props (PTS) — Top 10", "No PTS pre-game lines matching your filter.", book=bk)
-        render_clean_prop_board(filtered[filtered["Stat"] == "REB"].head(10), "Rebounds Props (REB) — Top 10", "No REB pre-game lines matching your filter.", book=bk)
-        render_clean_prop_board(filtered[filtered["Stat"] == "AST"].head(10), "Assists Props (AST) — Top 10", "No AST pre-game lines matching your filter.", book=bk)
-        render_clean_prop_board(filtered[filtered["Stat"] == "FG3M"].head(10), "3-Pointers Made Props (3PM) — Top 10", "No 3PM pre-game lines matching your filter.", book=bk)
-        render_clean_prop_board(filtered[filtered["Stat"] == "PRA"].head(10), "Points + Rebounds + Assists (PRA) — Top 10", "No PRA pre-game lines matching your filter.", book=bk)
-
-# =========================================================
-# TAB 2: SLATE & SAME-TAB GAME PAGE LAUNCHER
+# TAB 1: SLATE & MATCHUP PROJECTIONS (DEFAULT LANDING)
 # =========================================================
 with tab_slate:
-    st.markdown(f"##### {slate_date_label} Projected NBA Scores")
-    st.caption("Injury-adjusted simulations. Click any matchup to view box scores & props.")
+    st.markdown(f"##### {slate_date_label} Projected NBA Scores & Matchups")
+    st.caption("Injury-adjusted Monte Carlo simulations. Click any game card to open box scores, player props, and DvP matchups.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
@@ -1896,6 +1843,11 @@ with tab_slate:
         if len(parts) != 2:
             continue
         away_t, home_t = parts[0], parts[1]
+        
+        # Apply search filter if active
+        if search_player.strip() and not (search_player.strip().lower() in away_t.lower() or search_player.strip().lower() in home_t.lower()):
+            continue
+
         g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
         sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, out_players_key=out_players_tuple, n_sims=15000)
         fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
@@ -1924,7 +1876,7 @@ with tab_slate:
                 st.rerun()
 
 # =========================================================
-# TAB 3: AUTO-PARLAY BUILDER
+# TAB 2: AUTO-PARLAY BUILDER
 # =========================================================
 with tab_parlays:
     if not slate_props:
@@ -1934,21 +1886,20 @@ with tab_parlays:
 
         with col_multi:
             st.markdown("##### Cross-Game +EV Parlay")
-            st.caption("Combines the highest independent active model edge from each pre-game matchup.")
+            st.caption("Combines the highest win-probability active model props from each pre-game matchup.")
             num_parlay_legs = st.radio("Parlay Size", [2, 3, 4], horizontal=True)
             if not edges_df.empty:
                 best_per_game = edges_df.drop_duplicates(subset=["FullMatchup"]).head(num_parlay_legs)
                 if len(best_per_game) >= 2:
                     comb_dec = float(np.prod([american_to_decimal(o) for o in best_per_game["Odds"]]))
                     comb_mod_p = float(np.prod(best_per_game["Win Prob"] / 100.0))
-                    parlay_ev = (comb_mod_p * comb_dec - 1) * 100
                     parlay_odds = round((comb_dec - 1) * 100) if comb_dec >= 2.0 else round(-100 / (comb_dec - 1))
 
                     m1, m2 = st.columns(2)
                     m1.metric("Combined Odds", f"{parlay_odds:+d}")
-                    m2.metric("Parlay EV", f"{parlay_ev:+.1f}%")
+                    m2.metric("Combined Win Prob", f"{comb_mod_p*100:.1f}%")
 
-                    slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg +EV Parlay | {parlay_odds:+d})"]
+                    slip_lines = [f"{BRAND_NAME} ({num_parlay_legs}-Leg Parlay | {parlay_odds:+d})"]
                     for _, row in best_per_game.iterrows():
                         slip_lines.append(f"- {row['Player']} | {row['Line']} ({row['Odds']:+d})")
                         p_badge = player_badge_html(
@@ -1956,9 +1907,9 @@ with tab_parlays:
                             book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
                         )
                         st.markdown(
-                            f'<div class="pick-card"><div class="pick-top">{p_badge}<span class="ev-pos">{row["Odds"]:+d}</span></div>'
+                            f'<div class="pick-card"><div class="pick-top">{p_badge}<span class="line-cell">{row["Odds"]:+d}</span></div>'
                             f'<div class="pick-line">{row["Line"]}</div>'
-                            f'<div class="pick-details">Proj: <b>{row["Projection"]}</b> · Rating: <b>{row["Matchup Rating"]}</b> · EV: <b>{row["EV"]:+.1f}%</b></div></div>',
+                            f'<div class="pick-details">Proj: <b>{row["Projection"]}</b> · Rating: <b>{row["Matchup Rating"]}</b> · Win %: <b>{row["Win Prob"]:.0f}%</b></div></div>',
                             unsafe_allow_html=True
                         )
 
@@ -1990,7 +1941,7 @@ with tab_parlays:
                 )
 
 # =========================================================
-# TAB 4: CUSTOM SGP LAB
+# TAB 3: CUSTOM SGP LAB
 # =========================================================
 with tab_custom:
     st.markdown("##### Custom Multi-Leg SGP Correlation Pricer")
@@ -2028,7 +1979,7 @@ with tab_custom:
             m1.metric("Shared Games", res["shared_games"])
             m2.metric("Naive Odds", f"{res['naive_odds']:+d}")
             m3.metric("TRUE Fair Odds", f"{res['fair_odds']:+d}")
-            m4.metric("Expected Value (EV)", f"{res['ev_pct']:+.2f}%")
+            m4.metric("Fair Probability", f"{res['fair_prob']*100:.1f}%")
             st.dataframe(res["corr_df"], width="stretch")
 
 st.markdown(
