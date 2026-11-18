@@ -1022,9 +1022,13 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 if len(valid_df) < 12:
                     continue
 
+                # Robust Dual-Rate Blend (70% Season per-min rate + 30% Recent form per-min rate) to anchor elite stat-stuffers properly
                 per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
-                exp_rate = exp_weighted_mean(per_min_rates, decay=0.94)
-                base_proj = exp_rate * proj_min
+                season_rate = float(np.mean(per_min_rates))
+                recent_rate = exp_weighted_mean(per_min_rates, decay=0.94)
+                blended_rate = 0.70 * season_rate + 0.30 * recent_rate
+
+                base_proj = blended_rate * proj_min
 
                 raw_dvp = opp_pos_mults.get(stat, 1.0)
                 damp_dvp = 1.0 + 0.55 * (raw_dvp - 1.0)
@@ -1047,7 +1051,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
                     rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
 
-                    # Matchup Alignment check: strongly favor Overs in Smash spots and Unders in Tough spots
                     matchup_fit = 1.0
                     if "Smash" in rating_txt or "Favorable" in rating_txt:
                         if side == "Over":
@@ -1211,14 +1214,13 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         opp_def = opp_game_pts.get(opp, lg_avg_pts)
         expected_team_pts = ((tm_off + opp_def) / 2.0) * (1.015 if is_home else 0.985)
         
-        # Strictly anchor team totals to Vegas game total (ensuring realistic scoring floor >= 104 pts)
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
         expected_team_pts = 0.35 * expected_team_pts + 0.65 * vegas_implied
         expected_team_pts = max(104.0, expected_team_pts)
 
         shift = expected_team_pts - float(np.mean(raw_team_sim))
         calibrated_scores = raw_team_sim + shift
-        calibrated_scores = np.maximum(100.0, calibrated_scores) # Absolute scoring floor
+        calibrated_scores = np.maximum(100.0, calibrated_scores)
         return calibrated_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
@@ -1394,6 +1396,38 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
         f'<th style="width:18%;">DvP Rating</th>'
         f'<th style="width:8%;" class="col-right">Odds</th>'
         f'<th style="width:6%;" class="col-right">Win %</th>'
+        f'</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody>'
+        f'</table></div></div>'
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
+
+def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section_title: str):
+    """Renders pure top player projections for a specific stat category without lines/odds."""
+    sub = source_df.sort_values(by=stat_col, ascending=False).head(5)
+    if sub.empty:
+        return
+    rows_html = []
+    for _, r in sub.iterrows():
+        p_cell = player_badge_html(
+            r["PLAYER_NAME"], r["HEADSHOT_HREF"], r["TEAM_LOGO"], r.get("RAW_POS", "F")
+        )
+        val = r[stat_col]
+        rows_html.append(
+            f'<tr>'
+            f'<td style="width:45%;">{p_cell}</td>'
+            f'<td style="width:25%;">{r.get("TEAM_NAME", "")}</td>'
+            f'<td style="width:30%;" class="proj-cell col-right">{val:.1f} {stat_col}</td>'
+            f'</tr>'
+        )
+    table_html = (
+        f'<div class="board-card">'
+        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">Top 5</span></div>'
+        f'<div class="table-scroll-wrap"><table class="prop-table">'
+        f'<thead><tr>'
+        f'<th style="width:45%;">Player</th>'
+        f'<th style="width:25%;">Team</th>'
+        f'<th style="width:30%;" class="col-right">Projection</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         f'</table></div></div>'
@@ -1836,7 +1870,7 @@ kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-# 4-Tab Layout with Separated Overs, Unders, and Projections
+# 4-Tab Layout
 tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
     ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Slate & Matchup Projections",
@@ -1845,7 +1879,7 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (SEPARATED INTO OVERS / UNDERS / PROJECTIONS)
+# TAB 1: TOP STRAIGHT BETS (PROJECTIONS VS OVERS VS UNDERS)
 # =========================================================
 with tab_straight:
     if not slate_props:
@@ -1855,7 +1889,6 @@ with tab_straight:
     else:
         bk = st.session_state["selected_book"]
         
-        # Sub-tabs for Top Projections vs Top Overs vs Top Unders
         sub_proj, sub_overs, sub_unders = st.tabs([
             "🔥 Top Projections (High Ceiling)", 
             "📈 Top Overs", 
@@ -1863,12 +1896,46 @@ with tab_straight:
         ])
         
         with sub_proj:
-            st.caption("Highest statistical projections on the slate regardless of sportsbook line.")
-            top_proj_df = edges_df.sort_values(by="Projection", ascending=False)
-            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "PTS"].head(5), "Top Projected Points (PTS)", "No data.", book=bk)
-            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "REB"].head(5), "Top Projected Rebounds (REB)", "No data.", book=bk)
-            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "AST"].head(5), "Top Projected Assists (AST)", "No data.", book=bk)
-            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "PRA"].head(5), "Top Projected PRA", "No data.", book=bk)
+            st.caption("Highest statistical projections for today's active slate players (independent of sportsbook lines).")
+            # Build a slate-wide player projection summary table using recent form & season data
+            active_slate_norms = set()
+            for g_lbl, g_props in slate_props.items():
+                for np_k in g_props.keys():
+                    if not injury_map.get(np_k, {}).get("is_out"):
+                        active_slate_norms.add(np_k)
+            
+            slate_p_rows = []
+            grouped_df = {k: v for k, v in df.groupby("NORM_NAME")}
+            for np_k in active_slate_norms:
+                if np_k not in grouped_df:
+                    continue
+                p_df = grouped_df[np_k].tail(30)
+                if len(p_df) < 5:
+                    continue
+                p_med = media_lookup.get(np_k, {})
+                slate_p_rows.append({
+                    "PLAYER_NAME": p_df["PLAYER_NAME"].iloc[-1],
+                    "TEAM_NAME": p_df["TEAM_NAME"].iloc[-1],
+                    "HEADSHOT_HREF": p_med.get("headshot", DEFAULT_HEADSHOT),
+                    "TEAM_LOGO": p_med.get("team_logo", get_team_logo(p_df["TEAM_NAME"].iloc[-1])),
+                    "RAW_POS": p_med.get("raw_pos", "F"),
+                    "PTS": float(p_df["PTS"].mean()),
+                    "REB": float(p_df["REB"].mean()),
+                    "AST": float(p_df["AST"].mean()),
+                    "PRA": float(p_df["PRA"].mean()),
+                })
+            
+            if slate_p_rows:
+                sp_df = pd.DataFrame(slate_p_rows)
+                pc1, pc2 = st.columns(2, gap="medium")
+                with pc1:
+                    render_top_projections_board(sp_df, "PTS", "Top Projected Points (PTS)")
+                    render_top_projections_board(sp_df, "AST", "Top Projected Assists (AST)")
+                with pc2:
+                    render_top_projections_board(sp_df, "REB", "Top Projected Rebounds (REB)")
+                    render_top_projections_board(sp_df, "PRA", "Top Projected PRA")
+            else:
+                st.info("Calculating player projections...")
 
         with sub_overs:
             st.caption("Highest confidence Over bets backed by favorable matchup environments and strong model edges.")
@@ -1885,7 +1952,7 @@ with tab_straight:
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores & Matchups")
-    st.caption("Injury-adjusted Monte Carlo simulations (Scoring floor locked at 104+ pts). Click any game card to open box scores, player props, and DvP matchups.")
+    st.caption("Injury-adjusted Monte Carlo simulations. Click any game card to open box scores, player props, and DvP matchups.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
