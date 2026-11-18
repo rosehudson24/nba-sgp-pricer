@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · Monte Carlo Matchup Simulator · Analytics Terminal"
+BRAND_SUBTITLE = "NBA Prop Projections · Vegas-Anchored Edge Engine · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -963,7 +963,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             inj_mins = grouped[norm_inj]["MIN"].tail(15).mean()
             if inj_mins >= 24.0:
                 tm = inj_info.get("team", "")
-                team_usage_bump[tm] = min(1.06, team_usage_bump.get(tm, 1.0) + 0.025)
+                team_usage_bump[tm] = min(1.08, team_usage_bump.get(tm, 1.0) + 0.035)
 
     for game_label, game_props in slate_props.items():
         teams_in_game = [t.strip() for t in game_label.split("@")]
@@ -974,7 +974,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_total = g_line_info["total"]
         abs_spread = abs(g_line_info["spread_home"])
 
-        vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
+        # Vegas-First Pace & Scoring Environment Scaling
+        vegas_pace_mult = max(0.92, min(1.15, vegas_total / 228.0))
 
         for norm_p, p_data in game_props.items():
             inj_rec = injury_map.get(norm_p, {})
@@ -1022,18 +1023,21 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 if len(valid_df) < 12:
                     continue
 
-                # Robust Dual-Rate Blend (70% Season per-min rate + 30% Recent form per-min rate) to anchor elite stat-stuffers properly
                 per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
                 season_rate = float(np.mean(per_min_rates))
                 recent_rate = exp_weighted_mean(per_min_rates, decay=0.94)
-                blended_rate = 0.70 * season_rate + 0.30 * recent_rate
+                blended_rate = 0.60 * season_rate + 0.40 * recent_rate
 
                 base_proj = blended_rate * proj_min
 
                 raw_dvp = opp_pos_mults.get(stat, 1.0)
-                damp_dvp = 1.0 + 0.55 * (raw_dvp - 1.0)
+                damp_dvp = 1.0 + 0.60 * (raw_dvp - 1.0)
                 total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult
                 proj = base_proj * total_env_mult
+
+                # Ensure player projections dynamically scale towards elevated Vegas totals
+                if vegas_total > 230.0:
+                    proj *= (vegas_total / 228.0) ** 0.55
 
                 std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
                 model_over = skewed_prob_over(line, proj, std, valid_df[stat])
@@ -1054,14 +1058,14 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     matchup_fit = 1.0
                     if "Smash" in rating_txt or "Favorable" in rating_txt:
                         if side == "Over":
-                            matchup_fit = 1.30
+                            matchup_fit = 1.35
                         else:
-                            matchup_fit = 0.50
+                            matchup_fit = 0.45
                     elif "Tough" in rating_txt:
                         if side == "Under":
-                            matchup_fit = 1.30
+                            matchup_fit = 1.35
                         else:
-                            matchup_fit = 0.50
+                            matchup_fit = 0.45
 
                     blended_score = mod_p * matchup_fit
 
@@ -1100,7 +1104,6 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
     today_ts = pd.Timestamp.now().normalize()
     vegas_total = game_line.get("total", 228.0)
     vegas_spread_home = game_line.get("spread_home", 0.0)
-    vegas_pace_mult = 1.0 + 0.35 * ((vegas_total - 228.0) / 228.0)
     max_season = df["SEASON"].max()
     out_set = set(out_players_key)
 
@@ -1154,8 +1157,11 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             stats_proj = {}
             for st_col in ["PTS", "REB", "AST", "FG3M"]:
                 rates = (p_sub[st_col] / p_sub["MIN"]).values
-                base = exp_weighted_mean(rates, decay=0.94) * mins
-                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * vegas_pace_mult * loc_mult * b2b_mult
+                season_r = float(np.mean(rates))
+                recent_r = exp_weighted_mean(rates, decay=0.94)
+                blended_r = 0.60 * season_r + 0.40 * recent_r
+                base = blended_r * mins
+                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * (vegas_total / 228.0) * loc_mult * b2b_mult
                 mean_val = float(base * mult)
                 std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.94)
                 stats_proj[st_col] = (mean_val, std_val)
@@ -1210,17 +1216,15 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             })
 
         raw_team_sim = sim_pts_matrix.sum(axis=1)
-        tm_off = team_game_pts.get(team, lg_avg_pts)
-        opp_def = opp_game_pts.get(opp, lg_avg_pts)
-        expected_team_pts = ((tm_off + opp_def) / 2.0) * (1.015 if is_home else 0.985)
         
+        # Rigorous Vegas-First Anchoring for Team Totals
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
-        expected_team_pts = 0.35 * expected_team_pts + 0.65 * vegas_implied
-        expected_team_pts = max(104.0, expected_team_pts)
+        expected_team_pts = 0.15 * team_game_pts.get(team, lg_avg_pts) + 0.85 * vegas_implied
+        expected_team_pts = max(108.0, expected_team_pts)
 
         shift = expected_team_pts - float(np.mean(raw_team_sim))
         calibrated_scores = raw_team_sim + shift
-        calibrated_scores = np.maximum(100.0, calibrated_scores)
+        calibrated_scores = np.maximum(104.0, calibrated_scores)
         return calibrated_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
@@ -1403,7 +1407,6 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
     st.markdown(table_html, unsafe_allow_html=True)
 
 def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section_title: str):
-    """Renders pure top player projections for a specific stat category without lines/odds."""
     sub = source_df.sort_values(by=stat_col, ascending=False).head(5)
     if sub.empty:
         return
@@ -1897,7 +1900,6 @@ with tab_straight:
         
         with sub_proj:
             st.caption("Highest statistical projections for today's active slate players (independent of sportsbook lines).")
-            # Build a slate-wide player projection summary table using recent form & season data
             active_slate_norms = set()
             for g_lbl, g_props in slate_props.items():
                 for np_k in g_props.keys():
@@ -2091,7 +2093,7 @@ with tab_custom:
             opp_o = st.number_input("Other Side Odds", value=-105, step=5, key=f"opp{i}")
             legs.append({"player": p, "side": side, "stat": s, "odds": int(o), "opp_odds": int(opp_o)})
 
-    book_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
+    box_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
     if st.button("Price Custom SGP", type="primary"):
         res = price_sgp(df, legs, int(book_odds))
         if "error" in res:
