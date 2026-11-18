@@ -1047,18 +1047,18 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                     rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
                     rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
 
-                    # Matchup Alignment check: penalize Under in Smash / Favorable spots
+                    # Matchup Alignment check: strongly favor Overs in Smash spots and Unders in Tough spots
                     matchup_fit = 1.0
                     if "Smash" in rating_txt or "Favorable" in rating_txt:
-                        if side == "Under":
-                            matchup_fit = 0.65 # Penalize Unders in Smash spots
-                        else:
-                            matchup_fit = 1.25 # Reward Overs in Smash spots
-                    elif "Tough" in rating_txt:
                         if side == "Over":
-                            matchup_fit = 0.65 # Penalize Overs in Tough spots
+                            matchup_fit = 1.30
                         else:
-                            matchup_fit = 1.25 # Reward Unders in Tough spots
+                            matchup_fit = 0.50
+                    elif "Tough" in rating_txt:
+                        if side == "Under":
+                            matchup_fit = 1.30
+                        else:
+                            matchup_fit = 0.50
 
                     blended_score = mod_p * matchup_fit
 
@@ -1836,7 +1836,7 @@ kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-# Restored 4-Tab Layout (Top Straight Bets is Tab 1)
+# 4-Tab Layout with Separated Overs, Unders, and Projections
 tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
     ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Slate & Matchup Projections",
@@ -1845,7 +1845,7 @@ tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (FIXED MATCHUP LOGIC)
+# TAB 1: TOP STRAIGHT BETS (SEPARATED INTO OVERS / UNDERS / PROJECTIONS)
 # =========================================================
 with tab_straight:
     if not slate_props:
@@ -1854,18 +1854,38 @@ with tab_straight:
         st.warning("No pre-game props available for evaluation yet.")
     else:
         bk = st.session_state["selected_book"]
-        render_clean_prop_board(edges_df[edges_df["Stat"] == "PTS"].head(10), "Points Props (PTS) — Top Model Edges", "No PTS lines available.", book=bk)
-        render_clean_prop_board(edges_df[edges_df["Stat"] == "REB"].head(10), "Rebounds Props (REB) — Top Model Edges", "No REB lines available.", book=bk)
-        render_clean_prop_board(edges_df[edges_df["Stat"] == "AST"].head(10), "Assists Props (AST) — Top Model Edges", "No AST lines available.", book=bk)
-        render_clean_prop_board(edges_df[edges_df["Stat"] == "FG3M"].head(10), "3-Pointers Made (3PM) — Top Model Edges", "No 3PM lines available.", book=bk)
-        render_clean_prop_board(edges_df[edges_df["Stat"] == "PRA"].head(10), "PRA Props — Top Model Edges", "No PRA lines available.", book=bk)
+        
+        # Sub-tabs for Top Projections vs Top Overs vs Top Unders
+        sub_proj, sub_overs, sub_unders = st.tabs([
+            "🔥 Top Projections (High Ceiling)", 
+            "📈 Top Overs", 
+            "📉 Top Unders"
+        ])
+        
+        with sub_proj:
+            st.caption("Highest statistical projections on the slate regardless of sportsbook line.")
+            top_proj_df = edges_df.sort_values(by="Projection", ascending=False)
+            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "PTS"].head(5), "Top Projected Points (PTS)", "No data.", book=bk)
+            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "REB"].head(5), "Top Projected Rebounds (REB)", "No data.", book=bk)
+            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "AST"].head(5), "Top Projected Assists (AST)", "No data.", book=bk)
+            render_clean_prop_board(top_proj_df[top_proj_df["Stat"] == "PRA"].head(5), "Top Projected PRA", "No data.", book=bk)
+
+        with sub_overs:
+            st.caption("Highest confidence Over bets backed by favorable matchup environments and strong model edges.")
+            overs_df = edges_df[edges_df["Side"] == "Over"].sort_values(by="BlendedScore", ascending=False)
+            render_clean_prop_board(overs_df.head(15), "Top Over Plays — Slate", "No qualifying Over plays found.", book=bk)
+
+        with sub_unders:
+            st.caption("Highest confidence Under bets backed by tough defensive matchups and suppression.")
+            unders_df = edges_df[edges_df["Side"] == "Under"].sort_values(by="BlendedScore", ascending=False)
+            render_clean_prop_board(unders_df.head(15), "Top Under Plays — Slate", "No qualifying Under plays found.", book=bk)
 
 # =========================================================
 # TAB 2: SLATE & MATCHUP PROJECTIONS
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores & Matchups")
-    st.caption("Injury-adjusted Monte Carlo simulations. Click any game card to open box scores, player props, and DvP matchups.")
+    st.caption("Injury-adjusted Monte Carlo simulations (Scoring floor locked at 104+ pts). Click any game card to open box scores, player props, and DvP matchups.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
