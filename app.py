@@ -9,12 +9,15 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 from scipy.stats import norm, gamma
+from propline import PropLine
 
 # ==========================================
-# BRAND CONFIGURATION
+# BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
 BRAND_SUBTITLE = "NBA Prop Projections · +EV Parlay Engine · Monte Carlo Matchup Simulator"
+PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
+pl_client = PropLine(PROPLINE_API_KEY)
 
 st.set_page_config(
     page_title=f"{BRAND_NAME} — NBA Prop & Matchup Analytics",
@@ -99,14 +102,12 @@ div[data-testid="stDecoration"] { display: none; }
     border-radius: 50%;
 }
 
-/* Mobile-Friendly Table Wrapper (Smooth Touch Scrolling) */
 .table-scroll-wrap {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
 
-/* Clickable Player Avatar + Name Link */
 a.player-link {
     display: flex;
     align-items: center;
@@ -800,177 +801,172 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
     return fig
 
 @st.cache_data(ttl=600)
-def fetch_and_lock_pregame_slate(api_key: str, bookmaker: str = "draftkings", max_games: int = 12):
+def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int = 12):
+    """Pulls schedule, spreads, totals, and bulk player props from PropLine SDK."""
     et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(et_tz)
     today_date_et = now_et.date()
-    espn_date_str = today_date_et.strftime("%Y%m%d")
     date_key = f"{today_date_et.isoformat()}_{bookmaker}"
-    cutoff_utc = now_utc + timedelta(minutes=3)
 
     vault = get_daily_pregame_vault()
     day_bucket = vault.setdefault(date_key, {"games": {}, "props": {}})
 
     try:
-        sb_url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={espn_date_str}"
-        sb_data = requests.get(sb_url, timeout=8).json()
-        for ev in sb_data.get("events", []):
-            comps = ev.get("competitions", [{}])[0].get("competitors", [])
-            away_obj = next((c for c in comps if c.get("homeAway") == "away"), {})
-            home_obj = next((c for c in comps if c.get("homeAway") == "home"), {})
-            away_name = ESPN_TO_ODDS_TEAM.get(away_obj.get("team", {}).get("displayName", ""), away_obj.get("team", {}).get("displayName", ""))
-            home_name = ESPN_TO_ODDS_TEAM.get(home_obj.get("team", {}).get("displayName", ""), home_obj.get("team", {}).get("displayName", ""))
-            if not away_name or not home_name:
+        events = pl_client.get_events("basketball_nba")
+        pregame_events = []
+
+        for ev in events:
+            c_str = ev.get("commence_time", "")
+            if not c_str:
                 continue
-            lbl = f"{away_name} @ {home_name}"
-            c_str = ev.get("date", "")
-            tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00")) if c_str else now_utc
+            tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
             tip_et = tip_utc.astimezone(et_tz)
+            if tip_et.date() != today_date_et:
+                continue
+
+            away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
+            home = ESPN_TO_ODDS_TEAM.get(ev.get("home_team", ""), ev.get("home_team", ""))
+            lbl = f"{away} @ {home}"
             tip_str = tip_et.strftime("%I:%M %p ET").lstrip("0")
-            if lbl not in day_bucket["games"]:
-                day_bucket["games"][lbl] = {
-                    "spread_home": 0.0,
-                    "total": 228.0,
-                    "id": "",
-                    "tip_str": tip_str,
-                    "tip_utc": tip_utc.isoformat(),
-                }
+            event_id = ev.get("id")
+
+            day_bucket["games"][lbl] = {
+                "spread_home": 0.0,
+                "total": 228.0,
+                "id": event_id,
+                "tip_str": tip_str,
+                "tip_utc": tip_utc.isoformat(),
+            }
+            if tip_utc > (now_utc + timedelta(minutes=3)):
+                ev["_tip_et"] = tip_et
+                pregame_events.append(ev)
+
+        pregame_events.sort(key=lambda x: x["_tip_et"])
+        market_list = ["player_points", "player_rebounds", "player_assists", "player_threes", "player_points_rebounds_assists", "spreads", "totals"]
+
+        for ev in pregame_events[:max_games]:
+            away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
+            home = ESPN_TO_ODDS_TEAM.get(ev.get("home_team", ""), ev.get("home_team", ""))
+            lbl = f"{away} @ {home}"
+            event_id = ev.get("id")
+
+            odds_data = pl_client.get_odds("basketball_nba", event_id=event_id, markets=market_list)
+            
+            # Extract Spreads & Totals
+            spread_home = 0.0
+            total_line = 228.0
+            candidates = {}
+
+            for book in odds_data.get("bookmakers", []):
+                # Optionally filter by selected bookmaker if desired, or aggregate across books
+                for market in book.get("markets", []):
+                    m_key = market.get("key")
+                    if m_key == "spreads":
+                        for o in market.get("outcomes", []):
+                            if o.get("name") == home and o.get("point") is not None:
+                                spread_home = float(o["point"])
+                    elif m_key == "totals":
+                        for o in market.get("outcomes", []):
+                            if o.get("name") == "Over" and o.get("point") is not None:
+                                total_line = float(o["point"])
+                    else:
+                        stat_map = {
+                            "player_points": "PTS",
+                            "player_rebounds": "REB",
+                            "player_assists": "AST",
+                            "player_threes": "FG3M",
+                            "player_points_rebounds_assists": "PRA"
+                        }
+                        stat_code = stat_map.get(m_key)
+                        if not stat_code:
+                            continue
+                        for outcome in market.get("outcomes", []):
+                            player = outcome.get("description")
+                            side = outcome.get("name")
+                            line = outcome.get("point")
+                            price = outcome.get("price")
+                            if not player or side not in ("Over", "Under") or line is None or price is None:
+                                continue
+                            norm_p = normalize_name(player)
+                            p_obj = candidates.setdefault(norm_p, {"display_name": player, "stats": {}})
+                            st_obj = p_obj["stats"].setdefault(stat_code, {})
+                            line_obj = st_obj.setdefault(float(line), {})
+                            line_obj[side] = int(price)
+
+            day_bucket["games"][lbl]["spread_home"] = spread_home
+            day_bucket["games"][lbl]["total"] = total_line
+
+            props = {}
+            for norm_p, p_obj in candidates.items():
+                clean_stats = {}
+                for stat_code, lines_dict in p_obj["stats"].items():
+                    two_way = [(ln, sides) for ln, sides in lines_dict.items() if "Over" in sides and "Under" in sides]
+                    if not two_way:
+                        continue
+                    best_ln, best_sides = min(two_way, key=lambda item: abs(item[1]["Over"] + 110) + abs(item[1]["Under"] + 110))
+                    clean_stats[stat_code] = {
+                        "line": best_ln,
+                        "Over": best_sides["Over"],
+                        "Under": best_sides["Under"],
+                    }
+                if clean_stats:
+                    props[norm_p] = {"display_name": p_obj["display_name"], "stats": clean_stats}
+
+            if props:
+                day_bucket["props"][lbl] = props
+
     except Exception:
         pass
 
-    odds_url = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
-    game_res = requests.get(
-        odds_url,
-        params={
-            "apiKey": api_key,
-            "regions": "us",
-            "markets": "spreads,totals",
-            "oddsFormat": "american",
-            "bookmakers": bookmaker,
-        },
-        timeout=10
-    )
-    game_res.raise_for_status()
-    raw_games = game_res.json()
-
-    pregame_to_scan = []
-    for g in raw_games:
-        c_str = g.get("commence_time", "")
-        if not c_str:
-            continue
-        tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
-        tip_et = tip_utc.astimezone(et_tz)
-        if tip_et.date() != today_date_et:
-            continue
-
-        lbl = f"{g['away_team']} @ {g['home_team']}"
-        tip_str = tip_et.strftime("%I:%M %p ET").lstrip("0")
-
-        spread_home = 0.0
-        total_line = 228.0
-        for b in g.get("bookmakers", []):
-            for m in b.get("markets", []):
-                if m["key"] == "spreads":
-                    for o in m.get("outcomes", []):
-                        if o.get("name") == g["home_team"] and o.get("point") is not None:
-                            spread_home = float(o["point"])
-                elif m["key"] == "totals":
-                    for o in m.get("outcomes", []):
-                        if o.get("name") == "Over" and o.get("point") is not None:
-                            total_line = float(o["point"])
-
-        existing = day_bucket["games"].get(lbl, {})
-        day_bucket["games"][lbl] = {
-            "spread_home": spread_home if spread_home != 0.0 else existing.get("spread_home", 0.0),
-            "total": total_line if total_line != 228.0 else existing.get("total", 228.0),
-            "id": g["id"],
-            "tip_str": tip_str,
-            "tip_utc": tip_utc.isoformat(),
-        }
-
-        if tip_utc > cutoff_utc:
-            g["_tip_et"] = tip_et
-            pregame_to_scan.append(g)
-
-    pregame_to_scan.sort(key=lambda x: x["_tip_et"])
-
-    market_map = {
-        "player_points": "PTS",
-        "player_rebounds": "REB",
-        "player_assists": "AST",
-        "player_threes": "FG3M",
-        "player_points_rebounds_assists": "PRA",
-    }
-
-    for g in pregame_to_scan[:max_games]:
-        lbl = f"{g['away_team']} @ {g['home_team']}"
-        url = f"https://api.the-odds-api.com/v4/sports/basketball_nba/events/{g['id']}/odds"
-        params = {
-            "apiKey": api_key,
-            "regions": "us",
-            "markets": ",".join(market_map.keys()),
-            "oddsFormat": "american",
-            "bookmakers": bookmaker
-        }
-        try:
-            res = requests.get(url, params=params, timeout=12)
-            res.raise_for_status()
-            data = res.json()
-        except Exception:
-            continue
-
-        candidates = {}
-        for book in data.get("bookmakers", []):
-            for market in book.get("markets", []):
-                stat_code = market_map.get(market["key"])
-                if not stat_code:
-                    continue
-                for outcome in market.get("outcomes", []):
-                    player = outcome.get("description")
-                    side = outcome.get("name")
-                    line = outcome.get("point")
-                    price = outcome.get("price")
-                    if not player or side not in ("Over", "Under") or line is None or price is None:
-                        continue
-                    norm_p = normalize_name(player)
-                    p_obj = candidates.setdefault(norm_p, {"display_name": player, "stats": {}})
-                    st_obj = p_obj["stats"].setdefault(stat_code, {})
-                    line_obj = st_obj.setdefault(float(line), {})
-                    line_obj[side] = int(price)
-
-        props = {}
-        for norm_p, p_obj in candidates.items():
-            clean_stats = {}
-            for stat_code, lines_dict in p_obj["stats"].items():
-                two_way = [
-                    (ln, sides) for ln, sides in lines_dict.items()
-                    if "Over" in sides and "Under" in sides
-                ]
-                if not two_way:
-                    continue
-                best_ln, best_sides = min(
-                    two_way,
-                    key=lambda item: abs(item[1]["Over"] + 110) + abs(item[1]["Under"] + 110)
-                )
-                clean_stats[stat_code] = {
-                    "line": best_ln,
-                    "Over": best_sides["Over"],
-                    "Under": best_sides["Under"],
-                }
-            if clean_stats:
-                props[norm_p] = {"display_name": p_obj["display_name"], "stats": clean_stats}
-
-        if props:
-            day_bucket["props"][lbl] = props
-
-    all_game_labels = sorted(
-        day_bucket["games"].keys(),
-        key=lambda k: day_bucket["games"][k].get("tip_utc", "")
-    )
+    all_game_labels = sorted(day_bucket["games"].keys(), key=lambda k: day_bucket["games"][k].get("tip_utc", ""))
     slate_date_label = today_date_et.strftime("%A, %b %d")
     fetched_at = now_et.strftime("%I:%M %p ET")
     return all_game_labels, day_bucket["games"], day_bucket["props"], fetched_at, slate_date_label
+
+def american_to_prob(odds: int) -> float:
+    return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
+
+def american_to_decimal(odds: int) -> float:
+    return (odds / 100) + 1 if odds > 0 else (100 / abs(odds)) + 1
+
+def prob_to_american(p: float) -> int:
+    p = np.clip(p, 0.0001, 0.9999)
+    return round(-100 * p / (1 - p)) if p >= 0.5 else round(100 * (1 - p) / p)
+
+def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
+    p_sel = american_to_prob(odds_selected)
+    if odds_opposing != 0:
+        p_opp = american_to_prob(odds_opposing)
+        return p_sel / (p_sel + p_opp)
+    return p_sel * 0.955
+
+def exp_weighted_mean(values: np.ndarray, decay: float = 0.94) -> float:
+    n = len(values)
+    weights = decay ** np.arange(n - 1, -1, -1)
+    return float(np.sum(values * weights) / np.sum(weights))
+
+def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.94) -> float:
+    n = len(values)
+    weights = decay ** np.arange(n - 1, -1, -1)
+    var = np.sum(weights * (values - mean_val) ** 2) / np.sum(weights)
+    return float(np.sqrt(max(var, 0.65)))
+
+def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series: pd.Series) -> float:
+    emp_recent = (emp_series.tail(15) > line).mean()
+    emp_season = (emp_series.tail(40) > line).mean()
+    emp_blend = 0.65 * emp_recent + 0.35 * emp_season
+
+    if proj_mean <= 0.1:
+        return 0.01
+
+    variance = max(proj_std ** 2, proj_mean * 1.05)
+    shape_k = (proj_mean ** 2) / variance
+    scale_theta = variance / proj_mean
+    dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
+
+    w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
+    return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
 def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict) -> pd.DataFrame:
     rows = []
@@ -1359,7 +1355,6 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Zero-Indentation HTML Renderers with Mobile Scroll Wraps
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, book: str = "draftkings", from_game: str = ""):
     if source_df.empty:
         st.markdown(
@@ -1447,7 +1442,6 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
     )
     st.markdown(html, unsafe_allow_html=True)
 
-# Sync URL query params for clickable player links (same tab)
 qp_player = st.query_params.get("player", "")
 qp_game = st.query_params.get("game", "")
 qp_book = st.query_params.get("book", "draftkings")
@@ -1461,43 +1455,22 @@ if qp_player:
 if qp_game:
     st.session_state["active_game_page"] = qp_game
 
-# Load multi-season database, live injury report, media lookup & position-specific DvP metrics
 df = load_nba_data()
 injury_map, team_out_lists = fetch_nba_injury_report()
 out_players_tuple = tuple(sorted([k for k, v in injury_map.items() if v.get("is_out")]))
 media_lookup = build_player_media_lookup(df)
 team_metrics = compute_advanced_team_metrics(df)
 
-saved_key = ""
-try:
-    saved_key = st.secrets.get("ODDS_API_KEY", "")
-except Exception:
-    saved_key = ""
-
-# Top Brand Header
 st.markdown(
     f'<div class="brand-bar"><div class="brand-left"><div class="brand-logo">HP</div>'
     f'<div><p class="brand-name">{BRAND_NAME}</p><p class="brand-sub">{BRAND_SUBTITLE}</p></div></div>'
-    f'<span class="status-badge"><span class="status-dot"></span> INJURY-ADJUSTED DvP ENGINE</span></div>',
+    f'<span class="status-badge"><span class="status-dot"></span> PROPLINE + DvP ENGINE</span></div>',
     unsafe_allow_html=True
 )
 
-if not saved_key:
-    saved_key = st.text_input("Enter Odds API Key (or set ODDS_API_KEY in Streamlit Secrets)", type="password")
-
-all_game_labels = []
-game_lines = {}
-slate_props = {}
-fetched_at = "Just now"
-slate_date_label = ""
-
-if saved_key:
-    try:
-        all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_and_lock_pregame_slate(
-            saved_key, bookmaker=st.session_state["selected_book"], max_games=12
-        )
-    except Exception as e:
-        st.error(f"Live odds feed unavailable: {e}")
+all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_and_lock_propline_slate(
+    bookmaker=st.session_state["selected_book"], max_games=12
+)
 
 edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup, injury_map) if slate_props else pd.DataFrame()
 
@@ -1509,7 +1482,7 @@ for g_lbl in all_game_labels:
         team_today_opp[pts_g[1]] = (pts_g[0], "Home", g_lbl)
 
 # =========================================================
-# SAME-TAB PLAYER SCOUTING PROFILE (Clicked from Any Table)
+# SAME-TAB PLAYER SCOUTING PROFILE
 # =========================================================
 scout_player = st.session_state.get("active_player_profile")
 if scout_player:
@@ -1666,7 +1639,6 @@ if scout_player:
 
         st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
 
-        # Capped to 1-2 Primary Opponents of Same Position (30+ MIN)
         st.markdown(f"<div style='margin-top:1rem; font-weight:700; color:#F8FAFC; font-size:0.9rem;'>Recent Primary {pos_plural} vs {opp_team}</div>", unsafe_allow_html=True)
         opp_pos_pool = df[
             (df["OPP_NAME"] == opp_team) &
@@ -1853,7 +1825,7 @@ with ctrl_c3:
     search_player = st.text_input("Search", placeholder="Filter by player or team...")
 with ctrl_c4:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
-        fetch_and_lock_pregame_slate.clear()
+        fetch_and_lock_propline_slate.clear()
         fetch_nba_injury_report.clear()
         st.rerun()
 
@@ -1879,7 +1851,6 @@ kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-# Navigation Tabs
 tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
     ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Slate & Projected Box Scores",
@@ -2060,7 +2031,6 @@ with tab_custom:
             m4.metric("Expected Value (EV)", f"{res['ev_pct']:+.2f}%")
             st.dataframe(res["corr_df"], width="stretch")
 
-# Clean Bespoke Footer
 st.markdown(
     f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
     f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
