@@ -31,9 +31,11 @@ html, body, [class*="css"] {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .block-container {
-    padding-top: 1.2rem;
-    padding-bottom: 2.5rem;
+    padding-top: 0.8rem;
+    padding-bottom: 2rem;
     max-width: 1340px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
 }
 #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
 section[data-testid="stSidebar"] { display: none; }
@@ -43,30 +45,30 @@ div[data-testid="stDecoration"] { display: none; }
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.95rem 1.35rem;
+    padding: 0.85rem 1rem;
     background: #111622;
     border: 1px solid #1E2638;
     border-radius: 12px;
-    margin-bottom: 0.85rem;
+    margin-bottom: 0.75rem;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
-.brand-left { display: flex; align-items: center; gap: 0.8rem; }
+.brand-left { display: flex; align-items: center; gap: 0.7rem; }
 .brand-logo {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border-radius: 9px;
     background: linear-gradient(135deg, #10B981 0%, #059669 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 1.05rem;
+    font-size: 1rem;
     color: #06100C;
     letter-spacing: -0.5px;
 }
 .brand-name {
-    font-size: 1.38rem;
+    font-size: 1.25rem;
     font-weight: 800;
     color: #F8FAFC;
     letter-spacing: -0.4px;
@@ -74,34 +76,41 @@ div[data-testid="stDecoration"] { display: none; }
     line-height: 1.15;
 }
 .brand-sub {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #8B97AD;
     margin: 0.1rem 0 0 0;
 }
 .status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(16, 185, 129, 0.28);
     color: #34D399;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
-    padding: 4px 11px;
+    padding: 3px 9px;
     border-radius: 999px;
 }
 .status-dot {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     background: #10B981;
     border-radius: 50%;
 }
 
-/* Clickable Player Avatar + Name Link (Same Tab) */
+/* Mobile-Friendly Table Wrapper (Smooth Touch Scrolling) */
+.table-scroll-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Clickable Player Avatar + Name Link */
 a.player-link {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     overflow: hidden;
     text-decoration: none !important;
     color: inherit;
@@ -111,30 +120,26 @@ a.player-link:hover .player-name-txt {
     color: #10B981;
     text-decoration: underline;
 }
-a.player-link:hover .headshot-img {
-    border-color: #10B981;
-}
 .headshot-wrap {
     position: relative;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     flex-shrink: 0;
 }
 .headshot-img {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     object-fit: cover;
     background: #1E2638;
     border: 1px solid #2D3952;
-    transition: border-color 0.15s ease;
 }
 .team-mini-logo {
     position: absolute;
     bottom: -2px;
     right: -3px;
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #0F1420;
     padding: 1px;
@@ -142,46 +147,44 @@ a.player-link:hover .headshot-img {
     border: 1px solid #263147;
 }
 .team-inline-logo {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     object-fit: contain;
     vertical-align: middle;
-    margin-right: 6px;
+    margin-right: 5px;
 }
 .player-name-txt {
     font-weight: 600;
     color: #F8FAFC;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.15s ease;
+    font-size: 0.84rem;
 }
 .pos-pill {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: #94A3B8;
     background: #1A2234;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 4px;
     flex-shrink: 0;
 }
 .inj-q-pill {
-    font-size: 0.66rem;
+    font-size: 0.62rem;
     font-weight: 700;
     color: #FBBF24;
     background: rgba(245, 158, 11, 0.16);
     border: 1px solid rgba(245, 158, 11, 0.35);
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 4px;
     flex-shrink: 0;
 }
 .inj-out-pill {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: #F87171;
     background: rgba(239, 68, 68, 0.16);
     border: 1px solid rgba(239, 68, 68, 0.38);
-    padding: 2px 7px;
+    padding: 1px 6px;
     border-radius: 4px;
 }
 
@@ -189,20 +192,20 @@ a.player-link:hover .headshot-img {
     background: #111622;
     border: 1px solid #1E2638;
     border-radius: 11px;
-    margin-bottom: 1.1rem;
+    margin-bottom: 1rem;
     overflow: hidden;
 }
 .board-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.65rem 1rem;
+    padding: 0.6rem 0.85rem;
     background: #151C2C;
     border-bottom: 1px solid #1E2638;
     border-left: 3px solid #10B981;
 }
 .board-title {
-    font-size: 0.96rem;
+    font-size: 0.92rem;
     font-weight: 700;
     color: #F8FAFC;
     letter-spacing: -0.2px;
@@ -211,37 +214,34 @@ a.player-link:hover .headshot-img {
     gap: 6px;
 }
 .board-count {
-    font-size: 0.73rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: #94A3B8;
     background: #1E2638;
-    padding: 2px 9px;
+    padding: 2px 8px;
     border-radius: 999px;
 }
 table.prop-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.82rem;
-    table-layout: fixed;
+    font-size: 0.81rem;
+    white-space: nowrap;
 }
 table.prop-table th {
     text-align: left;
-    padding: 0.52rem 0.7rem;
+    padding: 0.5rem 0.65rem;
     color: #8B97AD;
     font-weight: 600;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     border-bottom: 1px solid #1E2638;
     background: #111622;
 }
 table.prop-table td {
-    padding: 0.46rem 0.7rem;
+    padding: 0.44rem 0.65rem;
     color: #E2E8F0;
     border-bottom: 1px solid #182032;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     vertical-align: middle;
 }
 table.prop-table tr:last-child td { border-bottom: none; }
@@ -254,15 +254,15 @@ table.prop-table tr:hover td { background: #161E30; }
     background: rgba(16, 185, 129, 0.15);
     color: #34D399;
     border: 1px solid rgba(16, 185, 129, 0.35);
-    padding: 1px 7px;
+    padding: 1px 6px;
     border-radius: 999px;
     font-weight: 700;
-    font-size: 0.75rem;
+    font-size: 0.73rem;
 }
 .ev-neg {
     color: #94A3B8;
     font-weight: 500;
-    font-size: 0.77rem;
+    font-size: 0.75rem;
 }
 .rating-good { color: #34D399; font-weight: 600; }
 .rating-bad { color: #F87171; font-weight: 600; }
@@ -272,7 +272,7 @@ table.prop-table tr:hover td { background: #161E30; }
     background: #111622;
     border: 1px solid #1E2638;
     border-radius: 10px;
-    padding: 0.85rem 1rem;
+    padding: 0.8rem 0.95rem;
     margin-bottom: 0.5rem;
 }
 .pick-top {
@@ -281,38 +281,38 @@ table.prop-table tr:hover td { background: #161E30; }
     align-items: center;
     margin-bottom: 0.25rem;
 }
-.pick-line { font-size: 0.92rem; font-weight: 600; color: #10B981; margin-bottom: 0.25rem; }
-.pick-details { font-size: 0.79rem; color: #8B97AD; line-height: 1.4; }
+.pick-line { font-size: 0.9rem; font-weight: 600; color: #10B981; margin-bottom: 0.2rem; }
+.pick-details { font-size: 0.76rem; color: #8B97AD; line-height: 1.4; }
 
 .matchup-card {
     background: #111622;
     border: 1px solid #1E2638;
     border-radius: 11px;
-    padding: 1rem 1.15rem;
+    padding: 0.9rem 1rem;
     margin-bottom: 0.5rem;
 }
 .matchup-team-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.28rem 0;
+    padding: 0.25rem 0;
 }
 .matchup-team {
-    font-size: 0.96rem;
+    font-size: 0.92rem;
     font-weight: 600;
     color: #F1F5F9;
     display: flex;
     align-items: center;
 }
-.matchup-prob { font-size: 0.78rem; color: #64748B; margin-left: 5px; }
-.matchup-pts { font-size: 1.25rem; font-weight: 800; color: #10B981; }
+.matchup-prob { font-size: 0.75rem; color: #64748B; margin-left: 4px; }
+.matchup-pts { font-size: 1.2rem; font-weight: 800; color: #10B981; }
 .matchup-footer {
     display: flex;
     justify-content: space-between;
-    margin-top: 0.55rem;
-    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
     border-top: 1px solid #1A2234;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     color: #8B97AD;
 }
 
@@ -320,8 +320,8 @@ table.prop-table tr:hover td { background: #161E30; }
     background: linear-gradient(135deg, #111622 0%, #161F33 100%);
     border: 1px solid #26324B;
     border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1.25rem;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.1rem;
 }
 
 .inj-strip {
@@ -329,40 +329,44 @@ table.prop-table tr:hover td { background: #161E30; }
     border: 1px solid #1E2638;
     border-left: 3px solid #EF4444;
     border-radius: 9px;
-    padding: 0.65rem 1rem;
-    margin-bottom: 1rem;
-    font-size: 0.81rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.78rem;
     color: #CBD5E1;
 }
 
 .heatmap-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.65rem;
-    margin-top: 0.5rem;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
 }
 .heat-tile {
-    border-radius: 10px;
-    padding: 0.75rem 0.85rem;
+    border-radius: 9px;
+    padding: 0.65rem 0.75rem;
     border: 1px solid #243047;
 }
 .heat-smash { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.42); }
 .heat-neutral { background: rgba(148, 163, 184, 0.08); border-color: #26324B; }
 .heat-tough { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); }
-.heat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.4px; color: #94A3B8; font-weight: 600; }
-.heat-rank { font-size: 1.12rem; font-weight: 800; color: #F8FAFC; margin: 2px 0; }
-.heat-sub { font-size: 0.75rem; color: #CBD5E1; }
+.heat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.4px; color: #94A3B8; font-weight: 600; }
+.heat-rank { font-size: 1.05rem; font-weight: 800; color: #F8FAFC; margin: 2px 0; }
+.heat-sub { font-size: 0.72rem; color: #CBD5E1; }
 
 .site-footer {
-    margin-top: 2.5rem;
-    padding-top: 1.1rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
     border-top: 1px solid #1E2638;
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem;
-    font-size: 0.76rem;
+    font-size: 0.73rem;
     color: #64748B;
+}
+
+@media(max-width: 768px) {
+    .heatmap-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -482,8 +486,6 @@ def get_daily_pregame_vault() -> dict:
 
 @st.cache_data(ttl=900)
 def fetch_nba_injury_report() -> tuple[dict, dict]:
-    """Fetches live NBA injury report from ESPN's public injuries endpoint.
-    Returns (player_injuries: {norm_name: {status, detail, team}}, team_out_lists: {team_name: [display_str]})."""
     player_injuries = {}
     team_out_lists = {}
     try:
@@ -970,59 +972,13 @@ def fetch_and_lock_pregame_slate(api_key: str, bookmaker: str = "draftkings", ma
     fetched_at = now_et.strftime("%I:%M %p ET")
     return all_game_labels, day_bucket["games"], day_bucket["props"], fetched_at, slate_date_label
 
-def american_to_prob(odds: int) -> float:
-    return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
-
-def american_to_decimal(odds: int) -> float:
-    return (odds / 100) + 1 if odds > 0 else (100 / abs(odds)) + 1
-
-def prob_to_american(p: float) -> int:
-    p = np.clip(p, 0.0001, 0.9999)
-    return round(-100 * p / (1 - p)) if p >= 0.5 else round(100 * (1 - p) / p)
-
-def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
-    p_sel = american_to_prob(odds_selected)
-    if odds_opposing != 0:
-        p_opp = american_to_prob(odds_opposing)
-        return p_sel / (p_sel + p_opp)
-    return p_sel * 0.955
-
-def exp_weighted_mean(values: np.ndarray, decay: float = 0.94) -> float:
-    n = len(values)
-    weights = decay ** np.arange(n - 1, -1, -1)
-    return float(np.sum(values * weights) / np.sum(weights))
-
-def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.94) -> float:
-    n = len(values)
-    weights = decay ** np.arange(n - 1, -1, -1)
-    var = np.sum(weights * (values - mean_val) ** 2) / np.sum(weights)
-    return float(np.sqrt(max(var, 0.65)))
-
-def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series: pd.Series) -> float:
-    emp_recent = (emp_series.tail(15) > line).mean()
-    emp_season = (emp_series.tail(40) > line).mean()
-    emp_blend = 0.65 * emp_recent + 0.35 * emp_season
-
-    if proj_mean <= 0.1:
-        return 0.01
-
-    variance = max(proj_std ** 2, proj_mean * 1.05)
-    shape_k = (proj_mean ** 2) / variance
-    scale_theta = variance / proj_mean
-    dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
-
-    w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
-    return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
-
 def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict) -> pd.DataFrame:
-    """Projects player props using DvP multipliers, filtering out ruled-out players and applying usage boost when teammates are out."""
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     dvp_mults_all = team_metrics["dvp_mult"]
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
 
-    # Calculate usage bump per team when high-minute teammates are ruled OUT
     team_usage_bump = {}
     for norm_inj, inj_info in injury_map.items():
         if inj_info.get("is_out") and norm_inj in grouped:
@@ -1043,7 +999,6 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
         vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
 
         for norm_p, p_data in game_props.items():
-            # Skip players officially ruled OUT / Suspended / Doubtful
             inj_rec = injury_map.get(norm_p, {})
             if inj_rec.get("is_out"):
                 continue
@@ -1149,18 +1104,23 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
     vegas_total = game_line.get("total", 228.0)
-    vegas_pace_mult = 1.0 + 0.45 * ((vegas_total - 228.0) / 228.0)
+    vegas_spread_home = game_line.get("spread_home", 0.0)
+    vegas_pace_mult = 1.0 + 0.35 * ((vegas_total - 228.0) / 228.0)
     max_season = df["SEASON"].max()
     out_set = set(out_players_key)
+
+    recent_season_df = df[df["SEASON"] >= max_season - 1]
+    team_game_pts = recent_season_df.groupby(["TEAM_NAME", "GAME_ID"])["PTS"].sum().groupby("TEAM_NAME").mean().to_dict()
+    opp_game_pts = recent_season_df.groupby(["OPP_NAME", "GAME_ID"])["PTS"].sum().groupby("OPP_NAME").mean().to_dict()
+    lg_avg_pts = float(np.mean(list(team_game_pts.values()))) if team_game_pts else 114.0
 
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
         if t_df.empty:
-            return np.full(n_sims, 110.0), pd.DataFrame()
+            return np.full(n_sims, 114.0), pd.DataFrame()
 
         curr_season_df = t_df[t_df["SEASON"] == max_season]
         active_pool = curr_season_df if not curr_season_df.empty else t_df
-        # Exclude players ruled OUT on the injury report
         active_pool = active_pool[~active_pool["NORM_NAME"].isin(out_set)]
 
         recent_games = active_pool["GAME_ID"].drop_duplicates().tail(10)
@@ -1171,35 +1131,36 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             .agg(["count", "mean"])
             .query("count >= 2")
             .sort_values(by="mean", ascending=False)
-            .head(10)
+            .head(9)
             .index.tolist()
         )
         if not rot_players:
-            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:10]
+            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:9]
 
         sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
         loc_mult = 1.012 if is_home else 0.988
-        b2b_mult = 0.975 if (team in last_games and (today_ts - last_games[team]).days == 1) else 1.0
+        b2b_mult = 0.978 if (team in last_games and (today_ts - last_games[team]).days == 1) else 1.0
 
-        # Scale rotation minutes up proportionally so total team minutes equal 240 when starters are OUT
         raw_mins = [exp_weighted_mean(sub[sub["PLAYER_NAME"] == p].tail(35)["MIN"].values, decay=0.90) for p in rot_players]
         total_raw_m = sum(raw_mins)
-        min_scale = min(1.12, max(1.0, 236.0 / total_raw_m)) if total_raw_m > 0 else 1.0
+        norm_mins = [(m / total_raw_m) * 240.0 for m in raw_mins] if total_raw_m > 0 else [240.0 / max(len(rot_players), 1)] * len(rot_players)
+        norm_mins = [min(39.5, m) for m in norm_mins]
+        if sum(norm_mins) > 0:
+            norm_mins = [(m / sum(norm_mins)) * 240.0 for m in norm_mins]
 
         player_params = []
-        for p, raw_m in zip(rot_players, raw_mins):
+        for p, mins in zip(rot_players, norm_mins):
             p_sub = sub[sub["PLAYER_NAME"] == p].tail(35)
             norm_p = normalize_name(p)
             p_media = media_lookup.get(norm_p, {})
             pos_g = p_media.get("pos_group", p_sub["POS_GROUP"].iloc[-1])
             opp_pos_mults = dvp_mults_all.get(opp, {}).get(pos_g, {})
 
-            mins = min(40.0, raw_m * min_scale)
             stats_proj = {}
             for st_col in ["PTS", "REB", "AST", "FG3M"]:
                 rates = (p_sub[st_col] / p_sub["MIN"]).values
                 base = exp_weighted_mean(rates, decay=0.94) * mins
-                mult = (1.0 + 0.55 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * vegas_pace_mult * loc_mult * b2b_mult
+                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * vegas_pace_mult * loc_mult * b2b_mult
                 mean_val = float(base * mult)
                 std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.94)
                 stats_proj[st_col] = (mean_val, std_val)
@@ -1253,8 +1214,17 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
                 "PRA": round(float(np.mean(sim_p + sim_r + sim_a)), 1),
             })
 
-        team_totals = sim_pts_matrix.sum(axis=1)
-        return team_totals, pd.DataFrame(box_rows)
+        raw_team_sim = sim_pts_matrix.sum(axis=1)
+        tm_off = team_game_pts.get(team, lg_avg_pts)
+        opp_def = opp_game_pts.get(opp, lg_avg_pts)
+        expected_team_pts = ((tm_off + opp_def) / 2.0) * (1.015 if is_home else 0.985)
+        if vegas_spread_home != 0.0:
+            vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
+            expected_team_pts = 0.55 * expected_team_pts + 0.45 * vegas_implied
+
+        shift = expected_team_pts - float(np.mean(raw_team_sim))
+        calibrated_scores = raw_team_sim + (0.45 * shift)
+        return calibrated_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
     home_scores, home_box = get_rotation(home_team, away_team, is_home=True)
@@ -1389,7 +1359,7 @@ def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 10
         "ev_pct": ev_pct
     }
 
-# Zero-Indentation HTML Renderers
+# Zero-Indentation HTML Renderers with Mobile Scroll Wraps
 def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, book: str = "draftkings", from_game: str = ""):
     if source_df.empty:
         st.markdown(
@@ -1423,20 +1393,20 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
 
     table_html = (
         f'<div class="board-card">'
-        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">{len(source_df)} Plays · Click Player to Scout</span></div>'
-        f'<table class="prop-table">'
+        f'<div class="board-header"><span class="board-title">{section_title}</span><span class="board-count">{len(source_df)} Plays · Click Player</span></div>'
+        f'<div class="table-scroll-wrap"><table class="prop-table">'
         f'<thead><tr>'
         f'<th style="width:24%;">Player</th>'
         f'<th style="width:14%;">Pre-Game Line</th>'
         f'<th style="width:8%;" class="col-right">Proj</th>'
         f'<th style="width:12%;">Matchup</th>'
-        f'<th style="width:17%;">DvP Matchup Rating</th>'
+        f'<th style="width:17%;">DvP Rating</th>'
         f'<th style="width:8%;" class="col-right">Odds</th>'
         f'<th style="width:7%;" class="col-right">Win %</th>'
         f'<th style="width:10%;" class="col-right">EV %</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
-        f'</table></div>'
+        f'</table></div></div>'
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
@@ -1462,9 +1432,9 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
     html = (
         f'<div class="board-card">'
         f'<div class="board-header"><span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span><span class="board-count">Win Prob: {win_prob:.1f}%</span></div>'
-        f'<table class="prop-table">'
+        f'<div class="table-scroll-wrap"><table class="prop-table">'
         f'<thead><tr>'
-        f'<th style="width:38%;">Active Rotation (Click to Scout)</th>'
+        f'<th style="width:38%;">Active Rotation (Click Player)</th>'
         f'<th style="width:10%;" class="col-right">MIN</th>'
         f'<th style="width:10%;" class="col-right">PTS</th>'
         f'<th style="width:10%;" class="col-right">REB</th>'
@@ -1473,7 +1443,7 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
         f'<th style="width:12%;" class="col-right">PRA</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
-        f'</table></div>'
+        f'</table></div></div>'
     )
     st.markdown(html, unsafe_allow_html=True)
 
@@ -1584,7 +1554,6 @@ if scout_player:
         cls_inj = "inj-out-pill" if p_inj.get("is_out") else "inj-q-pill"
         inj_banner_tag = f' &nbsp;<span class="{cls_inj}">INJURY REPORT: {p_inj["status"].upper()}</span>'
 
-    # Player Hero Banner
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div style="display:flex; align-items:center; gap:14px;">'
@@ -1697,14 +1666,13 @@ if scout_player:
 
         st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
 
-        # Primary Opposing Starters of SAME POSITION vs Tonight's Opponent (Capped to 1-2 Players)
+        # Capped to 1-2 Primary Opponents of Same Position (30+ MIN)
         st.markdown(f"<div style='margin-top:1rem; font-weight:700; color:#F8FAFC; font-size:0.9rem;'>Recent Primary {pos_plural} vs {opp_team}</div>", unsafe_allow_html=True)
         opp_pos_pool = df[
             (df["OPP_NAME"] == opp_team) &
             (df["POS_GROUP"] == pos_group) &
-            (df["MIN"] >= 28)
+            (df["MIN"] >= 30)
         ].copy()
-        # Keep only the single highest-minute player per game so one opponent team never floods the table
         if not opp_pos_pool.empty:
             opp_pos_pool = (
                 opp_pos_pool.sort_values(by=["GAME_DATE", "MIN"], ascending=[False, False])
@@ -1739,16 +1707,15 @@ if scout_player:
                     f'</tr>'
                 )
             st.markdown(
-                f'<div class="board-card" style="margin-top:0.4rem;"><table class="prop-table">'
+                f'<div class="board-card" style="margin-top:0.4rem;"><div class="table-scroll-wrap"><table class="prop-table">'
                 f'<thead><tr><th style="width:36%;">Player</th><th style="width:12%;">Date</th>'
                 f'<th style="width:10%;" class="col-right">MIN</th><th style="width:10%;" class="col-right">PTS</th>'
                 f'<th style="width:10%;" class="col-right">REB</th><th style="width:10%;" class="col-right">AST</th>'
                 f'<th style="width:12%;" class="col-right">PRA</th></tr></thead>'
-                f'<tbody>{"".join(dvp_rows)}</tbody></table></div>',
+                f'<tbody>{"".join(dvp_rows)}</tbody></table></div></div>',
                 unsafe_allow_html=True
             )
 
-    # Full Recent Game Log Table (Last 15 Games)
     st.markdown(f"##### {p_display} — Recent Game Log (Last 15 Games)")
     gl_rows = []
     for _, gr in p_hist.tail(15).iloc[::-1].iterrows():
@@ -1771,14 +1738,14 @@ if scout_player:
             f'</tr>'
         )
     st.markdown(
-        f'<div class="board-card"><table class="prop-table">'
+        f'<div class="board-card"><div class="table-scroll-wrap"><table class="prop-table">'
         f'<thead><tr>'
         f'<th style="width:11%;">Date</th><th style="width:23%;">Opponent</th>'
         f'<th style="width:9%;" class="col-right">MIN</th><th style="width:9%;" class="col-right">PTS</th>'
         f'<th style="width:9%;" class="col-right">REB</th><th style="width:9%;" class="col-right">AST</th>'
         f'<th style="width:9%;" class="col-right">3PM</th><th style="width:11%;" class="col-right">PRA</th>'
         f'<th style="width:10%;" class="col-right">FG</th>'
-        f'</tr></thead><tbody>{"".join(gl_rows)}</tbody></table></div>',
+        f'</tr></thead><tbody>{"".join(gl_rows)}</tbody></table></div></div>',
         unsafe_allow_html=True
     )
 
@@ -1790,7 +1757,7 @@ if scout_player:
     st.stop()
 
 # =========================================================
-# SAME-TAB GAME DETAIL PAGE (Projected Box Scores + Injury Report)
+# SAME-TAB GAME DETAIL PAGE
 # =========================================================
 target_game = st.session_state.get("active_game_page")
 if target_game and "@" in target_game:
@@ -1829,7 +1796,6 @@ if target_game and "@" in target_game:
         unsafe_allow_html=True
     )
 
-    # Display Ruled-Out Injury Report Strip for this Matchup
     away_outs = team_out_lists.get(away_sel, [])
     home_outs = team_out_lists.get(home_sel, [])
     if away_outs or home_outs:
@@ -1840,7 +1806,7 @@ if target_game and "@" in target_game:
             out_parts.append(f"<b>{home_sel} OUT:</b> {', '.join(home_outs)}")
         st.markdown(f'<div class="inj-strip">🚫 <b>Injury Report (Excluded from Projections):</b> &nbsp;{" &nbsp;|&nbsp; ".join(out_parts)}</div>', unsafe_allow_html=True)
 
-    st.markdown("##### Projected Active Player Box Scores (Click Any Player to Open Scouting Profile)")
+    st.markdown("##### Projected Active Player Box Scores (Click Player to Scout)")
     b1, b2 = st.columns(2, gap="medium")
     with b1:
         render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"], injury_map, book=st.session_state["selected_book"], from_game=target_game)
@@ -1899,7 +1865,6 @@ if not filtered.empty and search_player.strip():
         filtered["FullMatchup"].str.contains(q, case=False, na=False)
     ]
 
-# Top KPI Summary Strip
 slate_teams = set()
 for g_lbl in all_game_labels:
     for t in g_lbl.split("@"):
@@ -1946,7 +1911,7 @@ with tab_straight:
 # =========================================================
 with tab_slate:
     st.markdown(f"##### {slate_date_label} Projected NBA Scores")
-    st.caption("Injury-adjusted simulations (ruled-out players automatically removed and minutes redistributed). Click any matchup to inspect box scores & props.")
+    st.caption("Injury-adjusted simulations. Click any matchup to view box scores & props.")
 
     slate_list = all_game_labels if all_game_labels else [
         "Denver Nuggets @ Phoenix Suns",
