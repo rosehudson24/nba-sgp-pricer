@@ -15,7 +15,7 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA & NFL Prop Projections · Vegas-Anchored Edge Engine · Analytics Terminal"
+BRAND_SUBTITLE = "NBA & NFL Prop Projections · Current-Season Edge Engine · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
@@ -159,6 +159,11 @@ a.player-link:hover .player-name-txt {
     color: #F8FAFC;
     white-space: nowrap;
     font-size: 0.84rem;
+}
+.team-sub-txt {
+    font-size: 0.72rem;
+    color: #8B97AD;
+    margin-left: 4px;
 }
 .pos-pill {
     font-size: 0.65rem;
@@ -444,7 +449,8 @@ NFL_ABBR_TO_FULL = {
     "CAR": "Carolina Panthers", "CHI": "Chicago Bears", "CIN": "Cincinnati Bengals", "CLE": "Cleveland Browns",
     "DAL": "Dallas Cowboys", "DEN": "Denver Broncos", "DET": "Detroit Lions", "GB": "Green Bay Packers",
     "HOU": "Houston Texans", "IND": "Indianapolis Colts", "JAX": "Jacksonville Jaguars", "KC": "Kansas City Chiefs",
-    "LV": "Las Vegas Raiders", "LAC": "Los Angeles Chargers", "LA": "Los Angeles Rams", "LAR": "Los Angeles Rams",
+    "LV": "Las Vegas Raiders", "OAK": "Las Vegas Raiders", "LAC": "Los Angeles Chargers", "SD": "Los Angeles Chargers",
+    "LA": "Los Angeles Rams", "LAR": "Los Angeles Rams", "STL": "Los Angeles Rams",
     "MIA": "Miami Dolphins", "MIN": "Minnesota Vikings", "NE": "New England Patriots", "NO": "New Orleans Saints",
     "NYG": "New York Giants", "NYJ": "New York Jets", "PHI": "Philadelphia Eagles", "PIT": "Pittsburgh Steelers",
     "SF": "San Francisco 49ers", "SEA": "Seattle Seahawks", "TB": "Tampa Bay Buccaneers", "TEN": "Tennessee Titans",
@@ -461,6 +467,8 @@ SPORT_CONFIG = {
     "NBA": {
         "sport_key": "basketball_nba",
         "espn_sport": "basketball/nba",
+        "active_season": 2027,
+        "seasons": (2027, 2026),
         "default_total": 228.0,
         "stats": ["PTS", "REB", "AST", "FG3M", "PRA"],
         "stat_labels": {"PTS": "Points", "REB": "Rebounds", "AST": "Assists", "FG3M": "3PM", "PRA": "PRA"},
@@ -482,6 +490,8 @@ SPORT_CONFIG = {
     "NFL": {
         "sport_key": "americanfootball_nfl",
         "espn_sport": "football/nfl",
+        "active_season": 2026,
+        "seasons": (2026, 2025),
         "default_total": 45.5,
         "stats": ["PASS_YDS", "RUSH_YDS", "REC_YDS", "REC", "PASS_TD", "RUSH_REC_YDS"],
         "stat_labels": {
@@ -509,6 +519,16 @@ SPORT_CONFIG = {
 
 DEFAULT_HEADSHOT = "https://a.espncdn.com/combiner/i?img=/i/headshots/nophoto.png&w=96&h=70"
 
+def resolve_team_name(raw_team: str, league: str) -> str:
+    t = str(raw_team or "").strip()
+    if not t:
+        return ""
+    if league == "NFL":
+        up = t.upper()
+        if up in NFL_ABBR_TO_FULL:
+            return NFL_ABBR_TO_FULL[up]
+    return ESPN_TO_ODDS_TEAM.get(t, t)
+
 def map_position_group(raw_pos: str, league: str) -> str:
     p = str(raw_pos).strip().upper()
     if league == "NBA":
@@ -527,9 +547,10 @@ def map_position_group(raw_pos: str, league: str) -> str:
         return "WR"
 
 def get_team_logo(team_name: str, league: str) -> str:
+    resolved = resolve_team_name(team_name, league)
     if league == "NBA":
-        return NBA_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png")
-    return NFL_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png")
+        return NBA_TEAM_LOGOS.get(resolved, "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png")
+    return NFL_TEAM_LOGOS.get(resolved, "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png")
 
 def build_headshot_url(athlete_id, href: str = "", league: str = "NBA") -> str:
     if isinstance(href, str) and href.startswith("http"):
@@ -563,11 +584,12 @@ def ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
 
-def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", league: str = "NBA", book: str = "draftkings", from_game: str = "", inj_status: str = "") -> str:
+def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", team_short: str = "", league: str = "NBA", book: str = "draftkings", from_game: str = "", inj_status: str = "") -> str:
     href = f"?league={league}&player={quote_plus(player_name)}&book={book}"
     if from_game:
         href += f"&game={quote_plus(from_game)}"
     pos_html = f'<span class="pos-pill">{pos_label}</span>' if pos_label else ""
+    tm_html = f'<span class="team-sub-txt">{team_short}</span>' if team_short else ""
     inj_html = ""
     if inj_status and any(k in inj_status.lower() for k in ("questionable", "day-to-day", "probable", "gtd")):
         inj_html = '<span class="inj-q-pill">GTD</span>'
@@ -577,7 +599,7 @@ def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, p
         f'<img class="headshot-img" src="{headshot_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" />'
         f'<img class="team-mini-logo" src="{team_logo_url}" />'
         f'</div>'
-        f'<span class="player-name-txt">{player_name}</span>'
+        f'<span class="player-name-txt">{player_name}</span>{tm_html}'
         f'{pos_html}{inj_html}'
         f'</a>'
     )
@@ -585,6 +607,45 @@ def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, p
 @st.cache_resource
 def get_daily_pregame_vault() -> dict:
     return {}
+
+@st.cache_data(ttl=21600)
+def fetch_live_espn_rosters(league: str) -> dict:
+    """Pulls live 2026-27 active rosters from ESPN so traded/signed players always map to their current team."""
+    espn_path = SPORT_CONFIG[league]["espn_sport"]
+    roster_map = {}
+    try:
+        teams_url = f"https://site.api.espn.com/apis/site/v2/sports/{espn_path}/teams?limit=40"
+        t_data = requests.get(teams_url, timeout=8).json()
+        for sp in t_data.get("sports", []):
+            for lg in sp.get("leagues", []):
+                for t_item in lg.get("teams", []):
+                    tm = t_item.get("team", {})
+                    tid = tm.get("id")
+                    tname = resolve_team_name(tm.get("displayName", ""), league)
+                    if not tid or not tname:
+                        continue
+                    r_url = f"https://site.api.espn.com/apis/site/v2/sports/{espn_path}/teams/{tid}/roster"
+                    r_data = requests.get(r_url, timeout=6).json()
+                    athletes = r_data.get("athletes", [])
+                    for entry in athletes:
+                        items = entry.get("items", [entry]) if isinstance(entry, dict) else []
+                        for ath in items:
+                            full_n = ath.get("displayName") or ath.get("fullName", "")
+                            if not full_n:
+                                continue
+                            norm_n = normalize_name(full_n)
+                            pos_abbr = ath.get("position", {}).get("abbreviation", "")
+                            aid = ath.get("id")
+                            hs = ath.get("headshot", {}).get("href", "")
+                            roster_map[norm_n] = {
+                                "team_name": tname,
+                                "raw_pos": pos_abbr,
+                                "athlete_id": int(aid) if str(aid).isdigit() else 0,
+                                "headshot": hs,
+                            }
+    except Exception:
+        pass
+    return roster_map
 
 @st.cache_data(ttl=900)
 def fetch_injury_report(league: str) -> tuple[dict, dict]:
@@ -596,7 +657,7 @@ def fetch_injury_report(league: str) -> tuple[dict, dict]:
         data = requests.get(url, timeout=8).json()
         for team_blk in data.get("injuries", []):
             raw_team = team_blk.get("displayName", "")
-            team_name = ESPN_TO_ODDS_TEAM.get(raw_team, raw_team)
+            team_name = resolve_team_name(raw_team, league)
             for item in team_blk.get("injuries", []):
                 ath = item.get("athlete", {})
                 p_name = ath.get("displayName", "")
@@ -622,14 +683,16 @@ def fetch_injury_report(league: str) -> tuple[dict, dict]:
 
 @st.cache_data(ttl=21600)
 def load_sports_data(league: str):
+    seasons = SPORT_CONFIG[league]["seasons"]
     if league == "NBA":
         frames = []
-        for yr in (2025, 2026, 2027):
+        for yr in seasons:
             url = f"https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_player_boxscores/player_box_{yr}.parquet"
             try:
                 part = pd.read_parquet(url)
-                part["SEASON"] = yr
-                frames.append(part)
+                if not part.empty:
+                    part["SEASON"] = yr
+                    frames.append(part)
             except Exception:
                 continue
         if not frames:
@@ -638,7 +701,7 @@ def load_sports_data(league: str):
         df = df[df["minutes"] >= 10].copy()
         df["game_id"] = df["game_id"].astype(str)
         df["GAME_DATE"] = pd.to_datetime(df["game_date"], errors="coerce") if "game_date" in df.columns else pd.NaT
-        df = df.sort_values("GAME_DATE").drop_duplicates(subset=["game_id", "athlete_display_name"])
+        df = df.sort_values(["SEASON", "GAME_DATE"]).drop_duplicates(subset=["game_id", "athlete_display_name"])
 
         rename_map = {
             "game_id": "GAME_ID",
@@ -666,20 +729,23 @@ def load_sports_data(league: str):
             if col not in df.columns:
                 df[col] = ""
 
+        df["TEAM_NAME"] = df["TEAM_NAME"].apply(lambda x: resolve_team_name(x, "NBA"))
+        df["OPP_NAME"] = df["OPP_NAME"].apply(lambda x: resolve_team_name(x, "NBA"))
+
         valid_pos = df[df["RAW_POS"].astype(str).str.strip() != ""].drop_duplicates(subset=["PLAYER_NAME"], keep="last")
         pos_map = dict(zip(valid_pos["PLAYER_NAME"], valid_pos["RAW_POS"]))
         df["RAW_POS"] = df["PLAYER_NAME"].map(pos_map).fillna(df["RAW_POS"]).fillna("F")
         df["POS_GROUP"] = df["RAW_POS"].apply(lambda x: map_position_group(x, "NBA"))
         df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
         df["PRA"] = df["PTS"] + df["REB"] + df["AST"]
-        return df.sort_values("GAME_DATE").reset_index(drop=True)
+        return df.sort_values(["SEASON", "GAME_DATE"]).reset_index(drop=True)
 
     else:
         frames = []
-        for yr in (2026, 2025, 2024):
+        for yr in seasons:
             urls = [
-                f"https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_{yr}.parquet",
                 f"https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{yr}.parquet",
+                f"https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_{yr}.parquet",
             ]
             for url in urls:
                 try:
@@ -706,10 +772,12 @@ def load_sports_data(league: str):
         df["RAW_POS"] = df[pos_col].fillna("WR").astype(str)
         df = df[df["RAW_POS"].isin(["QB", "RB", "WR", "TE", "FB", "HB"])].copy()
 
-        team_col = "recent_team" if "recent_team" in df.columns else "team"
-        opp_col = "opponent_team" if "opponent_team" in df.columns else "opp"
-        df["TEAM_NAME"] = df[team_col].map(NFL_ABBR_TO_FULL).fillna(df[team_col])
-        df["OPP_NAME"] = df[opp_col].map(NFL_ABBR_TO_FULL).fillna(df[opp_col])
+        team_col = "recent_team" if "recent_team" in df.columns else ("team" if "team" in df.columns else None)
+        opp_col = "opponent_team" if "opponent_team" in df.columns else ("opp" if "opp" in df.columns else None)
+        raw_t = df[team_col].fillna("") if team_col else pd.Series("", index=df.index)
+        raw_o = df[opp_col].fillna("") if opp_col else pd.Series("", index=df.index)
+        df["TEAM_NAME"] = raw_t.apply(lambda x: resolve_team_name(x, "NFL"))
+        df["OPP_NAME"] = raw_o.apply(lambda x: resolve_team_name(x, "NFL"))
 
         wk = pd.to_numeric(df.get("week", 1), errors="coerce").fillna(1).astype(int)
         df["WEEK_NUM"] = wk
@@ -744,39 +812,66 @@ def load_sports_data(league: str):
 
 @st.cache_data(ttl=21600)
 def build_player_media_lookup(df: pd.DataFrame, league: str) -> dict:
-    if df.empty:
-        return {}
-    latest = df.drop_duplicates(subset=["NORM_NAME"], keep="last")
+    live_rosters = fetch_live_espn_rosters(league)
     media = {}
-    for _, r in latest.iterrows():
-        t_name = str(r.get("TEAM_NAME", ""))
-        raw_tlogo = str(r.get("TEAM_LOGO", ""))
-        t_logo = raw_tlogo if raw_tlogo.startswith("http") else get_team_logo(t_name, league)
-        aid = r.get("ATHLETE_ID")
-        h_url = build_headshot_url(aid, str(r.get("HEADSHOT_HREF", "")), league)
-        raw_p = str(r.get("RAW_POS", "")).strip() or r.get("POS_GROUP", "F")
-        media[r["NORM_NAME"]] = {
-            "athlete_id": int(float(aid)) if pd.notna(aid) else 0,
-            "headshot": h_url,
-            "team_logo": t_logo,
-            "team_name": t_name,
-            "raw_pos": raw_p,
-            "pos_group": r.get("POS_GROUP", "F"),
-        }
+
+    if not df.empty:
+        valid_teams = df[df["TEAM_NAME"].astype(str).str.strip() != ""].sort_values("GAME_DATE").drop_duplicates(subset=["NORM_NAME"], keep="last")
+        latest = df.sort_values("GAME_DATE").drop_duplicates(subset=["NORM_NAME"], keep="last")
+        team_by_norm = dict(zip(valid_teams["NORM_NAME"], valid_teams["TEAM_NAME"]))
+
+        for _, r in latest.iterrows():
+            n_key = r["NORM_NAME"]
+            live_info = live_rosters.get(n_key, {})
+            t_name = resolve_team_name(live_info.get("team_name") or team_by_norm.get(n_key) or r.get("TEAM_NAME", ""), league)
+            t_logo = get_team_logo(t_name, league)
+            aid = live_info.get("athlete_id") or r.get("ATHLETE_ID")
+            raw_hs = live_info.get("headshot") or str(r.get("HEADSHOT_HREF", ""))
+            h_url = build_headshot_url(aid, raw_hs, league)
+            raw_p = live_info.get("raw_pos") or str(r.get("RAW_POS", "")).strip() or r.get("POS_GROUP", "F")
+            media[n_key] = {
+                "athlete_id": int(float(aid)) if pd.notna(aid) else 0,
+                "headshot": h_url,
+                "team_logo": t_logo,
+                "team_name": t_name,
+                "team_short": t_name.split()[-1] if t_name else "",
+                "raw_pos": raw_p,
+                "pos_group": map_position_group(raw_p, league),
+            }
+
+    for n_key, live_info in live_rosters.items():
+        if n_key not in media:
+            t_name = live_info["team_name"]
+            raw_p = live_info.get("raw_pos", "F" if league == "NBA" else "WR")
+            media[n_key] = {
+                "athlete_id": live_info.get("athlete_id", 0),
+                "headshot": build_headshot_url(live_info.get("athlete_id"), live_info.get("headshot", ""), league),
+                "team_logo": get_team_logo(t_name, league),
+                "team_name": t_name,
+                "team_short": t_name.split()[-1] if t_name else "",
+                "raw_pos": raw_p,
+                "pos_group": map_position_group(raw_p, league),
+            }
     return media
 
 @st.cache_data(ttl=21600)
 def compute_advanced_team_metrics(df: pd.DataFrame, league: str) -> dict:
     stats = SPORT_CONFIG[league]["stats"]
     pos_groups = SPORT_CONFIG[league]["pos_groups"]
+    active_season = SPORT_CONFIG[league]["active_season"]
     if df.empty or "OPP_NAME" not in df.columns:
         return {"dvp_mult": {}, "dvp_ranks": {}, "dvp_avg": {}, "last_game": {}}
 
-    max_season = df["SEASON"].max()
-    recent_df = df[df["SEASON"] >= max_season - 1].copy()
+    curr_df = df[df["SEASON"] == active_season].copy()
+    # Use current season exclusively once 4+ weeks/games exist; otherwise blend 85% current / 15% prior
+    if curr_df["GAME_ID"].nunique() >= 25:
+        use_df = curr_df.copy()
+        use_df["w"] = 1.0
+    else:
+        use_df = df[df["SEASON"] >= active_season - 1].copy()
+        use_df["w"] = np.where(use_df["SEASON"] == active_season, 5.5, 1.0)
 
-    pos_game_allowed = recent_df.groupby(["OPP_NAME", "POS_GROUP", "GAME_ID", "SEASON"])[stats].sum().reset_index()
-    pos_game_allowed["w"] = np.where(pos_game_allowed["SEASON"] == max_season, 2.0, 1.0)
+    pos_game_allowed = use_df.groupby(["OPP_NAME", "POS_GROUP", "GAME_ID", "w"])[stats].sum().reset_index()
 
     def weighted_avg(grp):
         w = grp["w"].values
@@ -829,7 +924,7 @@ def format_matchup_rating(mult: float, pos_group: str = "") -> tuple[str, str]:
     return f"{score} · Neutral{pos_tag}", "rating-neutral"
 
 def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, player_name: str, league: str) -> go.Figure:
-    recent = p_df.tail(16 if league == "NFL" else 20).copy()
+    recent = p_df.tail(15 if league == "NFL" else 20).copy()
     if league == "NFL" and "WEEK_NUM" in recent.columns:
         dates = [f"{int(s)} W{int(w)}" for s, w in zip(recent["SEASON"], recent["WEEK_NUM"])]
     else:
@@ -902,11 +997,11 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
             tip_et = tip_utc.astimezone(et_tz)
             if league == "NBA" and tip_et.date() != today_date_et:
                 continue
-            if league == "NFL" and not (now_utc <= tip_utc <= now_utc + horizon):
+            if league == "NFL" and not (now_utc - timedelta(hours=6) <= tip_utc <= now_utc + horizon):
                 continue
 
-            away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
-            home = ESPN_TO_ODDS_TEAM.get(ev.get("home_team", ""), ev.get("home_team", ""))
+            away = resolve_team_name(ev.get("away_team", ""), league)
+            home = resolve_team_name(ev.get("home_team", ""), league)
             lbl = f"{away} @ {home}"
             tip_str = tip_et.strftime("%a %I:%M %p ET").lstrip("0") if league == "NFL" else tip_et.strftime("%I:%M %p ET").lstrip("0")
             event_id = ev.get("id")
@@ -918,20 +1013,20 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
                 "tip_str": tip_str,
                 "tip_utc": tip_utc.isoformat(),
             }
-            if tip_utc > (now_utc + timedelta(minutes=3)):
+            if tip_utc > (now_utc - timedelta(hours=4)):
                 ev["_tip_et"] = tip_et
                 pregame_events.append(ev)
 
         pregame_events.sort(key=lambda x: x["_tip_et"])
 
         for ev in pregame_events[:max_games]:
-            away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
-            home = ESPN_TO_ODDS_TEAM.get(ev.get("home_team", ""), ev.get("home_team", ""))
+            away = resolve_team_name(ev.get("away_team", ""), league)
+            home = resolve_team_name(ev.get("home_team", ""), league)
             lbl = f"{away} @ {home}"
             event_id = ev.get("id")
 
             odds_data = pl_client.get_odds(sport_key, event_id=event_id, markets=market_list)
-            
+
             spread_home = 0.0
             total_line = default_total
             candidates = {}
@@ -941,7 +1036,7 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
                     m_key = market.get("key")
                     if m_key == "spreads":
                         for o in market.get("outcomes", []):
-                            if o.get("name") == home and o.get("point") is not None:
+                            if resolve_team_name(o.get("name", ""), league) == home and o.get("point") is not None:
                                 spread_home = float(o["point"])
                     elif m_key == "totals":
                         for o in market.get("outcomes", []):
@@ -1019,20 +1114,28 @@ def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
         return p_sel / (p_sel + p_opp)
     return p_sel * 0.955
 
-def exp_weighted_mean(values: np.ndarray, decay: float = 0.93) -> float:
+def exp_weighted_mean(values: np.ndarray, decay: float = 0.90) -> float:
     n = len(values)
     weights = decay ** np.arange(n - 1, -1, -1)
     return float(np.sum(values * weights) / np.sum(weights))
 
-def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.93) -> float:
+def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.90) -> float:
     n = len(values)
     weights = decay ** np.arange(n - 1, -1, -1)
     var = np.sum(weights * (values - mean_val) ** 2) / np.sum(weights)
     return float(np.sqrt(max(var, 0.45)))
 
+def get_current_season_slice(p_df: pd.DataFrame, league: str) -> pd.DataFrame:
+    """Returns current-season games if >=4 exist; otherwise supplements with minimal prior-year context."""
+    active_season = SPORT_CONFIG[league]["active_season"]
+    curr = p_df[p_df["SEASON"] == active_season].copy()
+    if len(curr) >= 4:
+        return curr
+    return p_df.tail(8).copy()
+
 def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series: pd.Series) -> float:
-    emp_recent = (emp_series.tail(10) > line).mean()
-    emp_season = (emp_series.tail(25) > line).mean()
+    emp_recent = (emp_series.tail(5) > line).mean()
+    emp_season = (emp_series.tail(15) > line).mean()
     emp_blend = 0.65 * emp_recent + 0.35 * emp_season
 
     if proj_mean <= 0.05:
@@ -1043,8 +1146,52 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series:
     scale_theta = variance / proj_mean
     dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
 
-    w_dist = min(0.70, max(0.50, len(emp_series) / 40.0))
+    w_dist = min(0.75, max(0.55, len(emp_series) / 20.0))
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
+
+def compute_player_stat_projection(p_df: pd.DataFrame, stat: str, opp_pos_mults: dict, vegas_total: float, default_total: float, is_home: bool, spread_home: float, usage_bump: float, league: str) -> tuple[float, float]:
+    active_season = SPORT_CONFIG[league]["active_season"]
+    curr_df = p_df[p_df["SEASON"] == active_season]
+    prior_df = p_df[p_df["SEASON"] < active_season]
+
+    curr_vals = curr_df[stat].dropna().values
+    prior_vals = prior_df[stat].dropna().tail(10).values
+
+    if len(curr_vals) >= 5:
+        # 100% current season once 5+ games are logged (55% recent weighted form, 45% current-season avg)
+        recent_form = exp_weighted_mean(curr_vals[-6:], decay=0.88)
+        season_avg = float(np.mean(curr_vals))
+        base_proj = 0.55 * recent_form + 0.45 * season_avg
+        std_vals = curr_vals
+    elif len(curr_vals) >= 1:
+        # 85% current season / 15% prior season for players with 1-4 games back from injury
+        curr_avg = exp_weighted_mean(curr_vals, decay=0.90)
+        prior_avg = float(np.mean(prior_vals)) if len(prior_vals) > 0 else curr_avg
+        base_proj = 0.85 * curr_avg + 0.15 * prior_avg
+        std_vals = np.concatenate([prior_vals[-4:], curr_vals])
+    elif len(prior_vals) > 0:
+        base_proj = exp_weighted_mean(prior_vals, decay=0.90)
+        std_vals = prior_vals
+    else:
+        return 0.0, 1.0
+
+    total_factor = 1.0 + 0.22 * ((vegas_total - default_total) / max(default_total, 1.0))
+    raw_dvp = float(opp_pos_mults.get(stat, 1.0))
+    dvp_factor = 1.0 + 0.40 * (raw_dvp - 1.0)
+    loc_factor = 1.012 if is_home else 0.988
+
+    script_factor = 1.0
+    if league == "NFL":
+        pos_g = p_df["POS_GROUP"].iloc[-1] if "POS_GROUP" in p_df.columns else ""
+        team_spread = spread_home if is_home else -spread_home
+        if team_spread <= -6.5 and pos_g == "RB" and stat in ("RUSH_YDS", "RUSH_REC_YDS"):
+            script_factor = 1.04
+        elif team_spread >= 6.5 and pos_g in ("QB", "WR", "TE") and stat in ("PASS_YDS", "REC_YDS", "REC", "PASS_TD"):
+            script_factor = 1.03
+
+    proj = max(0.1, base_proj * total_factor * dvp_factor * loc_factor * script_factor * usage_bump)
+    std = exp_weighted_std(std_vals, proj, decay=0.90)
+    return float(proj), float(std)
 
 def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict, league: str) -> pd.DataFrame:
     if df.empty:
@@ -1052,30 +1199,27 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     dvp_mults_all = team_metrics["dvp_mult"]
-    last_games = team_metrics["last_game"]
-    today_ts = pd.Timestamp.now().normalize()
     default_total = SPORT_CONFIG[league]["default_total"]
-    min_games_req = 10 if league == "NBA" else 4
+    min_games_req = 4 if league == "NBA" else 2
 
     team_usage_bump = {}
     for norm_inj, inj_info in injury_map.items():
         if inj_info.get("is_out") and norm_inj in grouped:
-            inj_usage = grouped[norm_inj]["USAGE"].tail(10).mean()
+            inj_slice = get_current_season_slice(grouped[norm_inj], league)
+            inj_usage = inj_slice["USAGE"].mean()
             threshold = 24.0 if league == "NBA" else 6.0
             if inj_usage >= threshold:
-                tm = inj_info.get("team", "")
-                team_usage_bump[tm] = min(1.10, team_usage_bump.get(tm, 1.0) + 0.04)
+                tm = resolve_team_name(inj_info.get("team", ""), league)
+                team_usage_bump[tm] = min(1.08, team_usage_bump.get(tm, 1.0) + 0.03)
 
     for game_label, game_props in slate_props.items():
-        teams_in_game = [t.strip() for t in game_label.split("@")]
+        teams_in_game = [resolve_team_name(t.strip(), league) for t in game_label.split("@")]
         if len(teams_in_game) != 2:
             continue
         away_team, home_team = teams_in_game[0], teams_in_game[1]
         g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": default_total})
         vegas_total = g_line_info["total"]
         spread_home = g_line_info["spread_home"]
-        abs_spread = abs(spread_home)
-        vegas_pace_mult = (vegas_total / default_total) ** 0.75
 
         for norm_p, p_data in game_props.items():
             inj_rec = injury_map.get(norm_p, {})
@@ -1090,63 +1234,44 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
             if league == "NBA" and p_df["USAGE"].median() >= 24.0:
                 clean_p_df = p_df[p_df["USAGE"] >= 18.0]
-                if len(clean_p_df) >= 8:
+                if len(clean_p_df) >= 4:
                     p_df = clean_p_df
 
-            player_team = p_df["TEAM_NAME"].iloc[-1]
-            is_home = (player_team == home_team)
-            opp_team = away_team if is_home else home_team
-
             p_media = media_lookup.get(norm_p, {})
+            player_team = resolve_team_name(p_media.get("team_name") or p_df["TEAM_NAME"].iloc[-1], league)
+            if player_team == away_team:
+                is_home = False
+                opp_team = home_team
+            elif player_team == home_team:
+                is_home = True
+                opp_team = away_team
+            else:
+                is_home = False
+                opp_team = home_team if player_team else away_team
+
             pos_group = p_media.get("pos_group", p_df["POS_GROUP"].iloc[-1])
             raw_pos = p_media.get("raw_pos", pos_group)
             headshot_url = p_media.get("headshot", DEFAULT_HEADSHOT)
             team_logo_url = get_team_logo(player_team, league)
-
+            team_short = player_team.split()[-1] if player_team else ""
             opp_pos_mults = dvp_mults_all.get(opp_team, {}).get(pos_group, {})
+            usage_bump = team_usage_bump.get(player_team, 1.0)
 
-            usage_vals = p_df["USAGE"].dropna().tail(20).values
-            proj_usage = exp_weighted_mean(usage_vals, decay=0.92)
-
-            script_mult = 1.0
-            if league == "NBA":
-                if abs_spread >= 13.5 and proj_usage >= 30.0:
-                    proj_usage *= 0.97
-            else:
-                team_spread = spread_home if is_home else -spread_home
-                if team_spread <= -6.5 and pos_group == "RB":
-                    script_mult = 1.05
-                elif team_spread >= 6.5 and pos_group in ("QB", "WR", "TE"):
-                    script_mult = 1.04
-
-            b2b_mult = 1.0
-            if league == "NBA" and player_team in last_games:
-                if (today_ts - last_games[player_team]).days == 1:
-                    b2b_mult = 0.98
-
-            loc_mult = 1.012 if is_home else 0.988
-            usage_mult = team_usage_bump.get(player_team, 1.0)
+            curr_slice = get_current_season_slice(p_df, league)
+            proj_usage = exp_weighted_mean(curr_slice["USAGE"].dropna().values, decay=0.90)
             star_tier_weight = 1.0 + (min(proj_usage, 36.0) / 36.0) * 0.22 if league == "NBA" else 1.0 + (min(proj_usage, 35.0) / 35.0) * 0.20
 
             for stat, info in p_data["stats"].items():
                 if stat not in p_df.columns or "Over" not in info or "Under" not in info:
                     continue
-                
-                valid_df = p_df[["USAGE", stat]].dropna().tail(35)
-                if len(valid_df) < min_games_req:
+
+                valid_emp = curr_slice[stat].dropna()
+                if len(valid_emp) < min_games_req:
                     continue
 
-                per_unit_rates = (valid_df[stat] / np.maximum(valid_df["USAGE"], 1.0)).values
-                season_rate = float(np.mean(per_unit_rates))
-                recent_rate = exp_weighted_mean(per_unit_rates, decay=0.93)
-                blended_rate = 0.65 * season_rate + 0.35 * recent_rate
-
-                base_proj = blended_rate * proj_usage
-                raw_dvp = opp_pos_mults.get(stat, 1.0)
-                damp_dvp = 1.0 + 0.65 * (raw_dvp - 1.0)
-                total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult * script_mult
-                proj = base_proj * total_env_mult
-                std = exp_weighted_std(valid_df[stat].values, proj, decay=0.93)
+                proj, std = compute_player_stat_projection(
+                    p_df, stat, opp_pos_mults, vegas_total, default_total, is_home, spread_home, usage_bump, league
+                )
 
                 main_line = info["line"]
                 all_lines_dict = info.get("all_lines", {main_line: {"Over": info["Over"], "Under": info["Under"]}})
@@ -1159,14 +1284,15 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         if side not in sides:
                             continue
                         odds = int(sides[side])
-                        mod_p = skewed_prob_over(line_val, proj, std, valid_df[stat]) if side == "Over" else (1.0 - skewed_prob_over(line_val, proj, std, valid_df[stat]))
+                        mod_p = skewed_prob_over(line_val, proj, std, valid_emp) if side == "Over" else (1.0 - skewed_prob_over(line_val, proj, std, valid_emp))
 
                         opp_side = "Under" if side == "Over" else "Over"
                         opp_odds = int(sides.get(opp_side, -110))
                         nv_p = get_no_vig_prob(odds, opp_odds)
                         edge_pct = (mod_p - nv_p) * 100
 
-                        rating_mult = total_env_mult if side == "Over" else (2.0 - total_env_mult)
+                        raw_mult = float(opp_pos_mults.get(stat, 1.0))
+                        rating_mult = raw_mult if side == "Over" else (2.0 - raw_mult)
                         rating_txt, rating_cls = format_matchup_rating(rating_mult, pos_group)
 
                         matchup_fit = 1.0
@@ -1180,6 +1306,8 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                         rows.append({
                             "Player": p_data["display_name"],
                             "NORM_NAME": norm_p,
+                            "Team": player_team,
+                            "TeamShort": team_short,
                             "Pos": raw_pos,
                             "PosGroup": pos_group,
                             "InjStatus": inj_rec.get("status", ""),
@@ -1208,8 +1336,11 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
 @st.cache_data(ttl=1800)
 def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, league: str, out_players_key: tuple = (), n_sims: int = 15000):
+    away_team = resolve_team_name(away_team, league)
+    home_team = resolve_team_name(home_team, league)
     dvp_mults_all = team_metrics["dvp_mult"]
     default_total = SPORT_CONFIG[league]["default_total"]
+    active_season = SPORT_CONFIG[league]["active_season"]
     vegas_total = game_line.get("total", default_total)
     vegas_spread_home = game_line.get("spread_home", 0.0)
     if df.empty:
@@ -1224,12 +1355,12 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             "home_box": pd.DataFrame(),
         }
 
-    max_season = df["SEASON"].max()
     out_set = set(out_players_key)
 
     pts_col = "PTS" if league == "NBA" else "TOTAL_PTS"
-    recent_season_df = df[df["SEASON"] >= max_season - 1]
-    team_game_pts = recent_season_df.groupby(["TEAM_NAME", "GAME_ID"])[pts_col].sum().groupby("TEAM_NAME").mean().to_dict()
+    curr_season_df = df[df["SEASON"] == active_season]
+    pts_source = curr_season_df if curr_season_df["GAME_ID"].nunique() >= 20 else df
+    team_game_pts = pts_source.groupby(["TEAM_NAME", "GAME_ID"])[pts_col].sum().groupby("TEAM_NAME").mean().to_dict()
     lg_avg_pts = float(np.mean(list(team_game_pts.values()))) if team_game_pts else (default_total / 2.0)
 
     def get_rotation(team: str, opp: str, is_home: bool):
@@ -1237,12 +1368,13 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         if t_df.empty:
             return np.full(n_sims, default_total / 2.0), pd.DataFrame()
 
-        active_pool = t_df[t_df["SEASON"] >= max_season - 1].copy()
-        if active_pool.empty:
+        # Prioritize current season rotation
+        active_pool = t_df[t_df["SEASON"] == active_season].copy()
+        if active_pool["GAME_ID"].nunique() < 3:
             active_pool = t_df.copy()
         active_pool = active_pool[~active_pool["NORM_NAME"].isin(out_set)]
 
-        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(10 if league == "NFL" else 14)
+        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(6 if league == "NFL" else 8)
         recent_df = active_pool[active_pool["GAME_ID"].isin(recent_games)]
 
         rot_players = (
@@ -1256,29 +1388,12 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         if not rot_players:
             rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:8]
 
-        sub = active_pool[active_pool["PLAYER_NAME"].isin(rot_players)]
-        loc_mult = 1.012 if is_home else 0.988
+        sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
         sim_cols = ["PTS", "REB", "AST", "FG3M"] if league == "NBA" else ["PASS_YDS", "RUSH_YDS", "REC_YDS", "REC"]
 
-        raw_usages = []
-        for p in rot_players:
-            p_u = sub[sub["PLAYER_NAME"] == p]["USAGE"].tail(20)
-            min_floor = 18.0 if league == "NBA" else 8.0
-            if p_u.median() >= (24.0 if league == "NBA" else 10.0):
-                filtered_u = p_u[p_u >= min_floor]
-                p_u = filtered_u if len(filtered_u) >= 3 else p_u
-            raw_usages.append(exp_weighted_mean(p_u.values, decay=0.93))
-
-        if league == "NBA" and sum(raw_usages) > 240.0:
-            excess = sum(raw_usages) - 240.0
-            for idx_b in range(len(raw_usages) - 1, 2, -1):
-                cut = min(excess, max(0.0, raw_usages[idx_b] - 12.0))
-                raw_usages[idx_b] -= cut
-                excess -= cut
-
         player_params = []
-        for p, proj_u in zip(rot_players, raw_usages):
-            p_sub = sub[sub["PLAYER_NAME"] == p].tail(20)
+        for p in rot_players:
+            p_sub = sub[sub["PLAYER_NAME"] == p].copy()
             min_floor = 18.0 if league == "NBA" else 8.0
             if p_sub["USAGE"].median() >= (24.0 if league == "NBA" else 10.0):
                 filtered_sub = p_sub[p_sub["USAGE"] >= min_floor]
@@ -1288,20 +1403,21 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
             p_media = media_lookup.get(norm_p, {})
             pos_g = p_media.get("pos_group", p_sub["POS_GROUP"].iloc[-1])
             opp_pos_mults = dvp_mults_all.get(opp, {}).get(pos_g, {})
+            curr_u_slice = get_current_season_slice(p_sub, league)
+            proj_u = exp_weighted_mean(curr_u_slice["USAGE"].values, decay=0.90)
 
             stats_proj = {}
             for st_col in sim_cols:
-                rates = (p_sub[st_col] / np.maximum(p_sub["USAGE"], 1.0)).values
-                blended_r = 0.65 * float(np.mean(rates)) + 0.35 * exp_weighted_mean(rates, decay=0.93)
-                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * ((vegas_total / default_total) ** 0.75) * loc_mult
-                mean_val = float(blended_r * proj_u * mult)
-                std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.93)
-                stats_proj[st_col] = (mean_val, std_val)
+                m_val, s_val = compute_player_stat_projection(
+                    p_sub, st_col, opp_pos_mults, vegas_total, default_total, is_home, vegas_spread_home, 1.0, league
+                )
+                stats_proj[st_col] = (m_val, s_val)
             player_params.append({"player": p, "usage": proj_u, "stats": stats_proj})
 
         rng = np.random.default_rng(42)
         box_rows = []
         team_logo_url = get_team_logo(team, league)
+        team_short = team.split()[-1] if team else ""
 
         def sim_gamma_stat(m_val, s_val):
             if m_val <= 0.1:
@@ -1319,6 +1435,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
                 s_3pm = sim_gamma_stat(*p_info["stats"]["FG3M"])
                 box_rows.append({
                     "Player": p_info["player"],
+                    "TeamShort": team_short,
                     "Pos": p_media.get("raw_pos", "F"),
                     "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
                     "TeamLogo": team_logo_url,
@@ -1336,6 +1453,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
                 s_rec = sim_gamma_stat(*p_info["stats"]["REC"])
                 box_rows.append({
                     "Player": p_info["player"],
+                    "TeamShort": team_short,
                     "Pos": p_media.get("raw_pos", "WR"),
                     "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
                     "TeamLogo": team_logo_url,
@@ -1389,14 +1507,16 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         "home_box": home_box,
     }
 
-def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_map: dict, league: str, min_games: int = 8) -> pd.DataFrame:
+def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_map: dict, league: str, min_games: int = 6) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
+    active_season = SPORT_CONFIG[league]["active_season"]
     active_norms = [
         np_name for np_name in game_props.keys()
         if np_name in set(df["NORM_NAME"]) and not injury_map.get(np_name, {}).get("is_out")
     ]
-    sub = df[df["NORM_NAME"].isin(active_norms)].copy()
+    curr_sub = df[(df["NORM_NAME"].isin(active_norms)) & (df["SEASON"] == active_season)].copy()
+    sub = curr_sub if curr_sub["GAME_ID"].nunique() >= min_games else df[df["NORM_NAME"].isin(active_norms)].copy()
     if sub.empty:
         return pd.DataFrame()
 
@@ -1528,9 +1648,10 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
 
     rows_html = []
     for _, r in source_df.iterrows():
+        t_short = r.get("TeamShort") or (str(r.get("Team", "")).split()[-1] if r.get("Team") else "")
         p_cell = player_badge_html(
             r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""),
-            league=league, book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
+            team_short=t_short, league=league, book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
         )
         rows_html.append(
             f'<tr>'
@@ -1568,14 +1689,17 @@ def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section
         return
     rows_html = []
     for _, r in sub.iterrows():
+        t_name = resolve_team_name(r.get("TEAM_NAME", ""), league)
+        t_short = t_name.split()[-1] if t_name else ""
         p_cell = player_badge_html(
-            r["PLAYER_NAME"], r["HEADSHOT_HREF"], r["TEAM_LOGO"], r.get("RAW_POS", ""), league=league
+            r["PLAYER_NAME"], r["HEADSHOT_HREF"], r["TEAM_LOGO"], r.get("RAW_POS", ""),
+            team_short=t_short, league=league
         )
         val = r[stat_col]
         rows_html.append(
             f'<tr>'
             f'<td style="width:45%;">{p_cell}</td>'
-            f'<td style="width:25%;">{r.get("TEAM_NAME", "")}</td>'
+            f'<td style="width:25%;">{t_name or "—"}</td>'
             f'<td style="width:30%;" class="proj-cell col-right">{val:.1f} {stat_col}</td>'
             f'</tr>'
         )
@@ -1600,7 +1724,10 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
     for _, r in box_df.iterrows():
         norm_p = normalize_name(r["Player"])
         inj_st = injury_map.get(norm_p, {}).get("status", "")
-        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), league=league, book=book, from_game=from_game, inj_status=inj_st)
+        p_cell = player_badge_html(
+            r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""),
+            team_short=r.get("TeamShort", ""), league=league, book=book, from_game=from_game, inj_status=inj_st
+        )
         rows_html.append(
             f'<tr>'
             f'<td style="width:38%;">{p_cell}</td>'
@@ -1653,11 +1780,12 @@ if qp_game:
     st.session_state["active_game_page"] = qp_game
 
 active_league = st.session_state["selected_league"]
+active_season_yr = SPORT_CONFIG[active_league]["active_season"]
 
 st.markdown(
     f'<div class="brand-bar"><div class="brand-left"><div class="brand-logo">HP</div>'
     f'<div><p class="brand-name">{BRAND_NAME}</p><p class="brand-sub">{BRAND_SUBTITLE}</p></div></div>'
-    f'<span class="status-badge"><span class="status-dot"></span> {active_league} PROPLINE + DvP ENGINE</span></div>',
+    f'<span class="status-badge"><span class="status-dot"></span> {active_league} {active_season_yr} PROPLINE + DvP ENGINE</span></div>',
     unsafe_allow_html=True
 )
 
@@ -1676,7 +1804,7 @@ main_edges_df = edges_df[~edges_df["IsAlt"]].copy() if not edges_df.empty else p
 
 team_today_opp = {}
 for g_lbl in all_game_labels:
-    pts_g = [t.strip() for t in g_lbl.split("@")]
+    pts_g = [resolve_team_name(t.strip(), active_league) for t in g_lbl.split("@")]
     if len(pts_g) == 2:
         team_today_opp[pts_g[0]] = (pts_g[1], "Away", g_lbl)
         team_today_opp[pts_g[1]] = (pts_g[0], "Home", g_lbl)
@@ -1701,9 +1829,10 @@ if scout_player:
         st.warning(f"No historical game logs found for {scout_player} in {active_league}.")
         st.stop()
 
+    curr_p_hist = get_current_season_slice(p_hist, active_league)
     p_display = p_hist["PLAYER_NAME"].iloc[-1]
-    p_team = p_hist["TEAM_NAME"].iloc[-1]
     p_media = media_lookup.get(norm_scout, {})
+    p_team = resolve_team_name(p_media.get("team_name") or p_hist["TEAM_NAME"].iloc[-1], active_league)
     h_url = p_media.get("headshot", DEFAULT_HEADSHOT)
     t_logo = get_team_logo(p_team, active_league)
     pos_group = p_media.get("pos_group", p_hist["POS_GROUP"].iloc[-1])
@@ -1714,7 +1843,7 @@ if scout_player:
     if p_team in team_today_opp:
         opp_team, loc_label, matchup_lbl = team_today_opp[p_team]
     else:
-        opp_team = str(p_hist["OPP_NAME"].iloc[-1])
+        opp_team = resolve_team_name(str(p_hist["OPP_NAME"].iloc[-1]), active_league)
         loc_label = "Matchup"
 
     opp_logo = get_team_logo(opp_team, active_league)
@@ -1726,24 +1855,24 @@ if scout_player:
         inj_banner_tag = f' &nbsp;<span class="{cls_inj}">INJURY REPORT: {p_inj["status"].upper()}</span>'
 
     if active_league == "NBA":
-        avg_line_1 = f"{p_hist.tail(40)['PTS'].mean():.1f} PTS · {p_hist.tail(40)['REB'].mean():.1f} REB · {p_hist.tail(40)['AST'].mean():.1f} AST"
-        avg_line_2 = f"{p_hist.tail(10)['PTS'].mean():.1f} PTS · {p_hist.tail(10)['REB'].mean():.1f} REB · {p_hist.tail(10)['AST'].mean():.1f} AST"
+        avg_line_1 = f"{curr_p_hist['PTS'].mean():.1f} PTS · {curr_p_hist['REB'].mean():.1f} REB · {curr_p_hist['AST'].mean():.1f} AST"
+        avg_line_2 = f"{curr_p_hist.tail(5)['PTS'].mean():.1f} PTS · {curr_p_hist.tail(5)['REB'].mean():.1f} REB · {curr_p_hist.tail(5)['AST'].mean():.1f} AST"
     else:
-        avg_line_1 = f"{p_hist.tail(17)['PASS_YDS'].mean():.1f} PASS · {p_hist.tail(17)['RUSH_YDS'].mean():.1f} RUSH · {p_hist.tail(17)['REC_YDS'].mean():.1f} REC YD"
-        avg_line_2 = f"{p_hist.tail(5)['PASS_YDS'].mean():.1f} PASS · {p_hist.tail(5)['RUSH_YDS'].mean():.1f} RUSH · {p_hist.tail(5)['REC_YDS'].mean():.1f} REC YD"
+        avg_line_1 = f"{curr_p_hist['PASS_YDS'].mean():.1f} PASS · {curr_p_hist['RUSH_YDS'].mean():.1f} RUSH · {curr_p_hist['REC_YDS'].mean():.1f} REC YD"
+        avg_line_2 = f"{curr_p_hist.tail(5)['PASS_YDS'].mean():.1f} PASS · {curr_p_hist.tail(5)['RUSH_YDS'].mean():.1f} RUSH · {curr_p_hist.tail(5)['REC_YDS'].mean():.1f} REC YD"
 
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div style="display:flex; align-items:center; gap:14px;">'
         f'<img src="{h_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" style="width:68px; height:68px; border-radius:50%; object-fit:cover; background:#1E2638; border:2px solid #10B981;" />'
-        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">{active_league} Scouting · Position: {raw_pos} ({pos_plural}){inj_banner_tag}</div>'
+        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">{active_league} {active_season_yr} Scouting · Position: {raw_pos} ({pos_plural}){inj_banner_tag}</div>'
         f'<div style="font-size:1.65rem; font-weight:800; color:#F8FAFC; line-height:1.2;">{p_display}</div>'
         f'<div style="font-size:0.86rem; color:#94A3B8; margin-top:3px; display:flex; align-items:center; gap:6px;">'
-        f'<img src="{t_logo}" style="width:18px; height:18px;" /> <b>{p_team}</b> &nbsp;·&nbsp; {loc_label} vs '
-        f'<img src="{opp_logo}" style="width:18px; height:18px;" /> <b>{opp_team}</b></div></div></div>'
+        f'<img src="{t_logo}" style="width:18px; height:18px;" /> <b>{p_team or "Active Roster"}</b> &nbsp;·&nbsp; {loc_label} vs '
+        f'<img src="{opp_logo}" style="width:18px; height:18px;" /> <b>{opp_team or "TBD"}</b></div></div></div>'
         f'<div style="text-align:right; font-size:0.84rem; color:#CBD5E1;">'
-        f'<div>Season Avg: <b>{avg_line_1}</b></div>'
-        f'<div style="margin-top:3px;">Recent Form: <b>{avg_line_2}</b></div>'
+        f'<div>{active_season_yr} Avg ({len(curr_p_hist)} GP): <b>{avg_line_1}</b></div>'
+        f'<div style="margin-top:3px;">Last 5 Form: <b>{avg_line_2}</b></div>'
         f'</div></div></div>',
         unsafe_allow_html=True
     )
@@ -1761,27 +1890,28 @@ if scout_player:
     sc_c1, sc_c2 = st.columns([1.2, 2.8], vertical_alignment="bottom")
     with sc_c1:
         stat_choice = st.selectbox("Inspect Stat Trend", avail_stats)
-    default_line = round(float(p_hist.tail(12)[stat_choice].median()) - 0.5, 1)
+    default_line = round(float(curr_p_hist[stat_choice].median()) - 0.5, 1)
     if not p_lines_df.empty and stat_choice in set(p_lines_df["Stat"]):
         default_line = float(p_lines_df[p_lines_df["Stat"] == stat_choice]["RawLine"].iloc[0])
     with sc_c2:
         custom_line = st.number_input(f"Target {stat_choice} Line", value=max(0.5, default_line), step=0.5)
 
-    s_series = p_hist[stat_choice].dropna()
+    s_series = curr_p_hist[stat_choice].dropna()
     hr5 = (s_series.tail(5) > custom_line).mean() * 100
     hr10 = (s_series.tail(10) > custom_line).mean() * 100
-    hr20 = (s_series.tail(20) > custom_line).mean() * 100
-    hr_all = (s_series.tail(40) > custom_line).mean() * 100
+    hr_season = (s_series > custom_line).mean() * 100
+    all_series = p_hist[stat_choice].dropna()
+    hr_all = (all_series.tail(30) > custom_line).mean() * 100
 
     hk1, hk2, hk3, hk4 = st.columns(4)
     hk1.metric(f"Last 5 Over {custom_line}", f"{hr5:.0f}%", f"{int((s_series.tail(5) > custom_line).sum())}/5 Games")
-    hk2.metric(f"Last 10 Over {custom_line}", f"{hr10:.0f}%", f"{int((s_series.tail(10) > custom_line).sum())}/10 Games")
-    hk3.metric(f"Last 20 Over {custom_line}", f"{hr20:.0f}%", f"{int((s_series.tail(20) > custom_line).sum())}/20 Games")
-    hk4.metric(f"Sample Over {custom_line}", f"{hr_all:.0f}%", f"{int((s_series.tail(40) > custom_line).sum())}/{len(s_series.tail(40))} Games")
+    hk2.metric(f"Last 10 Over {custom_line}", f"{hr10:.0f}%", f"{int((s_series.tail(10) > custom_line).sum())}/{min(10, len(s_series))} Games")
+    hk3.metric(f"{active_season_yr} Season Over {custom_line}", f"{hr_season:.0f}%", f"{int((s_series > custom_line).sum())}/{len(s_series)} Games")
+    hk4.metric(f"Multi-Year Over {custom_line}", f"{hr_all:.0f}%", f"{int((all_series.tail(30) > custom_line).sum())}/{min(30, len(all_series))} Games")
 
-    st.plotly_chart(build_hit_rate_chart(p_hist, stat_choice, custom_line, p_display, active_league), use_container_width=True)
+    st.plotly_chart(build_hit_rate_chart(curr_p_hist, stat_choice, custom_line, p_display, active_league), use_container_width=True)
 
-    st.markdown(f"##### {opp_team} Defense vs. {pos_plural} (DvP Heat Map)")
+    st.markdown(f"##### {opp_team} {active_season_yr} Defense vs. {pos_plural} (DvP Heat Map)")
     st.caption(f"Rank 1 = Toughest vs {pos_plural} · Rank {30 if active_league == 'NBA' else 32} = Allows Most to {pos_plural}")
     opp_pos_rks = team_metrics["dvp_ranks"].get(opp_team, {}).get(pos_group, {})
     opp_pos_avgs = team_metrics["dvp_avg"].get(opp_team, {}).get(pos_group, {})
@@ -1809,12 +1939,12 @@ if scout_player:
         )
     st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
 
-    st.markdown(f"##### {p_display} — Recent Game Log (Last 15 Games)")
+    st.markdown(f"##### {p_display} — {active_season_yr} Game Log")
     gl_rows = []
     gl_headers = ["Date", "Opponent", "MIN", "PTS", "REB", "AST", "3PM", "PRA"] if active_league == "NBA" else ["Season/Wk", "Opponent", "OPP/TGT", "PASS", "RUSH", "REC YD", "REC", "RUSH+REC"]
-    for _, gr in p_hist.tail(15).iloc[::-1].iterrows():
+    for _, gr in curr_p_hist.tail(15).iloc[::-1].iterrows():
         g_dt = f"{int(gr['SEASON'])} W{int(gr['WEEK_NUM'])}" if active_league == "NFL" and "WEEK_NUM" in gr else (gr["GAME_DATE"].strftime("%b %d") if pd.notna(gr["GAME_DATE"]) else "-")
-        opp_n = str(gr.get("OPP_NAME", ""))
+        opp_n = resolve_team_name(str(gr.get("OPP_NAME", "")), active_league)
         opp_lg = get_team_logo(opp_n, active_league)
         ha_tag = "vs" if str(gr.get("HOME_AWAY", "")).lower() == "home" else "@"
         if active_league == "NBA":
@@ -1825,7 +1955,7 @@ if scout_player:
         gl_rows.append(
             f'<tr>'
             f'<td style="width:13%;">{g_dt}</td>'
-            f'<td style="width:27%;"><img class="team-inline-logo" src="{opp_lg}" />{ha_tag} {opp_n}</td>'
+            f'<td style="width:27%;"><img class="team-inline-logo" src="{opp_lg}" />{ha_tag} {opp_n or "—"}</td>'
             f'<td style="width:10%;" class="col-right">{c1}</td>'
             f'<td style="width:10%;" class="proj-cell col-right">{c2}</td>'
             f'<td style="width:10%;" class="col-right">{c3}</td>'
@@ -1865,7 +1995,7 @@ if target_game and "@" in target_game:
                 del st.query_params["game"]
             st.rerun()
 
-    parts = [t.strip() for t in target_game.split("@")]
+    parts = [resolve_team_name(t.strip(), active_league) for t in target_game.split("@")]
     away_sel, home_sel = parts[0], parts[1]
     g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": SPORT_CONFIG[active_league]["default_total"], "tip_str": ""})
     detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, active_league, out_players_key=out_players_tuple, n_sims=15000)
@@ -1879,7 +2009,7 @@ if target_game and "@" in target_game:
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">'
-        f'{active_league} Projected Matchup & Box Scores · {g_line.get("tip_str", slate_date_label)}</div>'
+        f'{active_league} {active_season_yr} Projected Matchup & Box Scores · {g_line.get("tip_str", slate_date_label)}</div>'
         f'<div style="font-size:1.55rem; font-weight:800; color:#F8FAFC; margin-top:0.35rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">'
         f'<img src="{away_logo}" style="width:28px; height:28px; object-fit:contain;" /><span>{away_sel}</span>'
         f'<span style="color:#10B981;">{detail_sim["away_score"]}</span><span style="color:#64748B; font-size:1.1rem;">@</span>'
@@ -1963,12 +2093,15 @@ with ctrl_c3:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
         fetch_and_lock_propline_slate.clear()
         fetch_injury_report.clear()
+        fetch_live_espn_rosters.clear()
         st.rerun()
 
 slate_teams = set()
 for g_lbl in all_game_labels:
     for t in g_lbl.split("@"):
-        slate_teams.add(t.strip())
+        resolved_t = resolve_team_name(t.strip(), active_league)
+        if resolved_t:
+            slate_teams.add(resolved_t)
 slate_outs_count = sum(len(v) for k, v in team_out_lists.items() if k in slate_teams)
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -1996,44 +2129,46 @@ with tab_straight:
     else:
         bk = st.session_state["selected_book"]
         sub_proj, sub_overs, sub_unders = st.tabs([
-            "🔥 Top Projections (High Ceiling)", 
-            "📈 Top Overs", 
+            "🔥 Top Projections (High Ceiling)",
+            "📈 Top Overs",
             "📉 Top Unders"
         ])
-        
+
         with sub_proj:
-            st.caption(f"Highest statistical projections for active {active_league} slate players.")
+            st.caption(f"Highest {active_season_yr} statistical projections for active {active_league} slate players.")
             active_slate_norms = set()
             for g_lbl, g_props in slate_props.items():
                 for np_k in g_props.keys():
                     if not injury_map.get(np_k, {}).get("is_out"):
                         active_slate_norms.add(np_k)
-            
+
             slate_p_rows = []
             grouped_df = {k: v for k, v in df.groupby("NORM_NAME")}
             stat_keys = SPORT_CONFIG[active_league]["stats"][:4]
             for np_k in active_slate_norms:
                 if np_k not in grouped_df:
                     continue
-                p_df = grouped_df[np_k].tail(16 if active_league == "NFL" else 30)
+                p_df = get_current_season_slice(grouped_df[np_k], active_league)
                 if active_league == "NBA" and p_df["USAGE"].median() >= 24.0:
                     clean_p = p_df[p_df["USAGE"] >= 18.0]
-                    if len(clean_p) >= 5:
+                    if len(clean_p) >= 4:
                         p_df = clean_p
-                if len(p_df) < 3:
+                if len(p_df) < 2:
                     continue
                 p_med = media_lookup.get(np_k, {})
+                t_name = resolve_team_name(p_med.get("team_name") or p_df["TEAM_NAME"].iloc[-1], active_league)
                 row_dict = {
                     "PLAYER_NAME": p_df["PLAYER_NAME"].iloc[-1],
-                    "TEAM_NAME": p_df["TEAM_NAME"].iloc[-1],
+                    "TEAM_NAME": t_name,
                     "HEADSHOT_HREF": p_med.get("headshot", DEFAULT_HEADSHOT),
-                    "TEAM_LOGO": p_med.get("team_logo", get_team_logo(p_df["TEAM_NAME"].iloc[-1], active_league)),
+                    "TEAM_LOGO": get_team_logo(t_name, active_league),
                     "RAW_POS": p_med.get("raw_pos", ""),
                 }
                 for sk in stat_keys:
-                    row_dict[sk] = float(p_df[sk].mean())
+                    vals = p_df[sk].dropna().values
+                    row_dict[sk] = float(0.55 * exp_weighted_mean(vals[-6:], decay=0.88) + 0.45 * np.mean(vals)) if len(vals) > 0 else 0.0
                 slate_p_rows.append(row_dict)
-            
+
             if slate_p_rows:
                 sp_df = pd.DataFrame(slate_p_rows)
                 pc1, pc2 = st.columns(2, gap="medium")
@@ -2067,11 +2202,11 @@ with tab_slate:
     else:
         grid_cols = st.columns(3)
         for idx, g_lbl in enumerate(all_game_labels):
-            parts = [t.strip() for t in g_lbl.split("@")]
+            parts = [resolve_team_name(t.strip(), active_league) for t in g_lbl.split("@")]
             if len(parts) != 2:
                 continue
             away_t, home_t = parts[0], parts[1]
-            
+
             if search_player.strip() and not (search_player.strip().lower() in away_t.lower() or search_player.strip().lower() in home_t.lower()):
                 continue
 
@@ -2165,9 +2300,9 @@ with tab_parlays:
 
                     p_badge = player_badge_html(
                         row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""),
-                        league=active_league, book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
+                        team_short=row.get("TeamShort", ""), league=active_league, book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
                     )
-                    
+
                     leg_col_1, leg_col_2 = st.columns([4.2, 1.2], vertical_alignment="center")
                     with leg_col_1:
                         st.markdown(
