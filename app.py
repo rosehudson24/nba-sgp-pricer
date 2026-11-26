@@ -982,6 +982,7 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
 
     vault = get_daily_pregame_vault()
     day_bucket = vault.setdefault(date_key, {"games": {}, "props": {}, "td_props": {}})
+    day_bucket.setdefault("td_props", {})
 
     try:
         events = pl_client.get_events(sport_key)
@@ -1057,7 +1058,6 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
                             point = outcome.get("point")
                             if price is None:
                                 continue
-                            # Skip 2+ TD rungs if included in same market
                             if point is not None and float(point) > 1.0:
                                 continue
                             if raw_name.lower() in ("no", "under"):
@@ -1122,7 +1122,7 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
     all_game_labels = sorted(day_bucket["games"].keys(), key=lambda k: day_bucket["games"][k].get("tip_utc", ""))
     slate_date_label = today_date_et.strftime("%A, %b %d") if league == "NBA" else f"Week Slate ({today_date_et.strftime('%b %d')})"
     fetched_at = now_et.strftime("%I:%M %p ET")
-    return all_game_labels, day_bucket["games"], day_bucket["props"], day_bucket["td_props"], fetched_at, slate_date_label
+    return all_game_labels, day_bucket["games"], day_bucket["props"], day_bucket.get("td_props", {}), fetched_at, slate_date_label
 
 def american_to_prob(odds: int) -> float:
     return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
@@ -1146,7 +1146,6 @@ def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
     if odds_opposing != 0:
         p_opp = american_to_prob(odds_opposing)
         return p_sel / (p_sel + p_opp)
-    # Single-sided markets (like Anytime TD) carry ~7-8% hold
     return p_sel * 0.925
 
 def exp_weighted_mean(values: np.ndarray, decay: float = 0.90) -> float:
@@ -1249,7 +1248,6 @@ def compute_player_stat_projection(p_df: pd.DataFrame, stat: str, opp_pos_mults:
     return float(proj), float(std)
 
 def evaluate_anytime_tds(df: pd.DataFrame, td_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict) -> pd.DataFrame:
-    """Evaluates NFL Anytime TD Scorers using Poisson scoring rate anchored to Vegas implied team totals and DvP TD rates."""
     if df.empty or not td_props or "ANYTIME_TD" not in df.columns:
         return pd.DataFrame()
 
@@ -1317,7 +1315,6 @@ def evaluate_anytime_tds(df: pd.DataFrame, td_props: dict, game_lines: dict, tea
             else:
                 continue
 
-            # Scale expected TDs by team's Vegas implied score vs league average (22.75 pts)
             vegas_implied = (vegas_total / 2.0) - (spread_home / 2.0) if is_home else (vegas_total / 2.0) + (spread_home / 2.0)
             team_scoring_mult = max(0.65, min(1.45, vegas_implied / 22.75))
             raw_td_dvp = float(opp_pos_mults.get("ANYTIME_TD", 1.0))
@@ -1874,7 +1871,7 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
         f'<th style="width:14%;">Matchup</th>'
         f'<th style="width:18%;">DvP Rating</th>'
         f'<th style="width:8%;" class="col-right">Odds</th>'
-        f'<th style="width:6%;" class="col-right">TD / Win %</th>'
+        f'<th style="width:6%;" class="col-right">Win %</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         f'</table></div></div>'
