@@ -15,13 +15,13 @@ from propline import PropLine
 # BRAND & API CONFIGURATION
 # ==========================================
 BRAND_NAME = "Hector's Picks"
-BRAND_SUBTITLE = "NBA Prop Projections · Alternate Line & Parlay Engine · Terminal"
+BRAND_SUBTITLE = "NBA & NFL Prop Projections · Vegas-Anchored Edge Engine · Analytics Terminal"
 PROPLINE_API_KEY = "b2858a5f3784220e7da1dee8d9916ab7"
 pl_client = PropLine(PROPLINE_API_KEY)
 
 st.set_page_config(
-    page_title=f"{BRAND_NAME} — NBA Prop & Matchup Analytics",
-    page_icon=":material/sports_basketball:",
+    page_title=f"{BRAND_NAME} — NBA & NFL Prop Analytics",
+    page_icon=":material/analytics:",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -367,6 +367,9 @@ table.prop-table tr:hover td { background: #161E30; }
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# TEAM LOGOS & MAPPINGS (NBA + NFL)
+# ==========================================
 NBA_TEAM_LOGOS = {
     "Atlanta Hawks": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png",
     "Boston Celtics": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
@@ -401,39 +404,142 @@ NBA_TEAM_LOGOS = {
     "Washington Wizards": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png",
 }
 
-ESPN_TO_ODDS_TEAM = {
-    "LA Clippers": "Los Angeles Clippers",
+NFL_TEAM_LOGOS = {
+    "Arizona Cardinals": "https://a.espncdn.com/i/teamlogos/nfl/500/ari.png",
+    "Atlanta Falcons": "https://a.espncdn.com/i/teamlogos/nfl/500/atl.png",
+    "Baltimore Ravens": "https://a.espncdn.com/i/teamlogos/nfl/500/bal.png",
+    "Buffalo Bills": "https://a.espncdn.com/i/teamlogos/nfl/500/buf.png",
+    "Carolina Panthers": "https://a.espncdn.com/i/teamlogos/nfl/500/car.png",
+    "Chicago Bears": "https://a.espncdn.com/i/teamlogos/nfl/500/chi.png",
+    "Cincinnati Bengals": "https://a.espncdn.com/i/teamlogos/nfl/500/cin.png",
+    "Cleveland Browns": "https://a.espncdn.com/i/teamlogos/nfl/500/cle.png",
+    "Dallas Cowboys": "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+    "Denver Broncos": "https://a.espncdn.com/i/teamlogos/nfl/500/den.png",
+    "Detroit Lions": "https://a.espncdn.com/i/teamlogos/nfl/500/det.png",
+    "Green Bay Packers": "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png",
+    "Houston Texans": "https://a.espncdn.com/i/teamlogos/nfl/500/hou.png",
+    "Indianapolis Colts": "https://a.espncdn.com/i/teamlogos/nfl/500/ind.png",
+    "Jacksonville Jaguars": "https://a.espncdn.com/i/teamlogos/nfl/500/jax.png",
+    "Kansas City Chiefs": "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png",
+    "Las Vegas Raiders": "https://a.espncdn.com/i/teamlogos/nfl/500/lv.png",
+    "Los Angeles Chargers": "https://a.espncdn.com/i/teamlogos/nfl/500/lac.png",
+    "Los Angeles Rams": "https://a.espncdn.com/i/teamlogos/nfl/500/lar.png",
+    "Miami Dolphins": "https://a.espncdn.com/i/teamlogos/nfl/500/mia.png",
+    "Minnesota Vikings": "https://a.espncdn.com/i/teamlogos/nfl/500/min.png",
+    "New England Patriots": "https://a.espncdn.com/i/teamlogos/nfl/500/ne.png",
+    "New Orleans Saints": "https://a.espncdn.com/i/teamlogos/nfl/500/no.png",
+    "New York Giants": "https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png",
+    "New York Jets": "https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png",
+    "Philadelphia Eagles": "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png",
+    "Pittsburgh Steelers": "https://a.espncdn.com/i/teamlogos/nfl/500/pit.png",
+    "San Francisco 49ers": "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png",
+    "Seattle Seahawks": "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png",
+    "Tampa Bay Buccaneers": "https://a.espncdn.com/i/teamlogos/nfl/500/tb.png",
+    "Tennessee Titans": "https://a.espncdn.com/i/teamlogos/nfl/500/ten.png",
+    "Washington Commanders": "https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png",
 }
 
-POS_FULL_PLURAL = {
-    "G": "Guards",
-    "F": "Forwards",
-    "C": "Centers",
+NFL_ABBR_TO_FULL = {
+    "ARI": "Arizona Cardinals", "ATL": "Atlanta Falcons", "BAL": "Baltimore Ravens", "BUF": "Buffalo Bills",
+    "CAR": "Carolina Panthers", "CHI": "Chicago Bears", "CIN": "Cincinnati Bengals", "CLE": "Cleveland Browns",
+    "DAL": "Dallas Cowboys", "DEN": "Denver Broncos", "DET": "Detroit Lions", "GB": "Green Bay Packers",
+    "HOU": "Houston Texans", "IND": "Indianapolis Colts", "JAX": "Jacksonville Jaguars", "KC": "Kansas City Chiefs",
+    "LV": "Las Vegas Raiders", "LAC": "Los Angeles Chargers", "LA": "Los Angeles Rams", "LAR": "Los Angeles Rams",
+    "MIA": "Miami Dolphins", "MIN": "Minnesota Vikings", "NE": "New England Patriots", "NO": "New Orleans Saints",
+    "NYG": "New York Giants", "NYJ": "New York Jets", "PHI": "Philadelphia Eagles", "PIT": "Pittsburgh Steelers",
+    "SF": "San Francisco 49ers", "SEA": "Seattle Seahawks", "TB": "Tampa Bay Buccaneers", "TEN": "Tennessee Titans",
+    "WAS": "Washington Commanders", "WSH": "Washington Commanders"
+}
+
+ESPN_TO_ODDS_TEAM = {
+    "LA Clippers": "Los Angeles Clippers",
+    "LA Rams": "Los Angeles Rams",
+    "LA Chargers": "Los Angeles Chargers",
+}
+
+SPORT_CONFIG = {
+    "NBA": {
+        "sport_key": "basketball_nba",
+        "espn_sport": "basketball/nba",
+        "default_total": 228.0,
+        "stats": ["PTS", "REB", "AST", "FG3M", "PRA"],
+        "stat_labels": {"PTS": "Points", "REB": "Rebounds", "AST": "Assists", "FG3M": "3PM", "PRA": "PRA"},
+        "pos_groups": ["G", "F", "C"],
+        "pos_plural": {"G": "Guards", "F": "Forwards", "C": "Centers"},
+        "markets": [
+            "player_points", "player_rebounds", "player_assists", "player_threes",
+            "player_points_rebounds_assists", "player_points_alternate",
+            "player_rebounds_alternate", "player_assists_alternate", "spreads", "totals"
+        ],
+        "market_map": {
+            "player_points": "PTS", "player_points_alternate": "PTS",
+            "player_rebounds": "REB", "player_rebounds_alternate": "REB",
+            "player_assists": "AST", "player_assists_alternate": "AST",
+            "player_threes": "FG3M",
+            "player_points_rebounds_assists": "PRA"
+        }
+    },
+    "NFL": {
+        "sport_key": "americanfootball_nfl",
+        "espn_sport": "football/nfl",
+        "default_total": 45.5,
+        "stats": ["PASS_YDS", "RUSH_YDS", "REC_YDS", "REC", "PASS_TD", "RUSH_REC_YDS"],
+        "stat_labels": {
+            "PASS_YDS": "Pass Yds", "RUSH_YDS": "Rush Yds", "REC_YDS": "Rec Yds",
+            "REC": "Receptions", "PASS_TD": "Pass TDs", "RUSH_REC_YDS": "Rush+Rec Yds"
+        },
+        "pos_groups": ["QB", "RB", "WR", "TE"],
+        "pos_plural": {"QB": "Quarterbacks", "RB": "Running Backs", "WR": "Wide Receivers", "TE": "Tight Ends"},
+        "markets": [
+            "player_pass_yds", "player_rush_yds", "player_reception_yds", "player_receptions",
+            "player_pass_tds", "player_rush_reception_yds",
+            "player_pass_yds_alternate", "player_rush_yds_alternate", "player_reception_yds_alternate",
+            "spreads", "totals"
+        ],
+        "market_map": {
+            "player_pass_yds": "PASS_YDS", "player_pass_yds_alternate": "PASS_YDS",
+            "player_rush_yds": "RUSH_YDS", "player_rush_yds_alternate": "RUSH_YDS",
+            "player_reception_yds": "REC_YDS", "player_reception_yds_alternate": "REC_YDS",
+            "player_receptions": "REC",
+            "player_pass_tds": "PASS_TD",
+            "player_rush_reception_yds": "RUSH_REC_YDS"
+        }
+    }
 }
 
 DEFAULT_HEADSHOT = "https://a.espncdn.com/combiner/i?img=/i/headshots/nophoto.png&w=96&h=70"
 
-def map_position_group(raw_pos: str) -> str:
+def map_position_group(raw_pos: str, league: str) -> str:
     p = str(raw_pos).strip().upper()
-    if p in ("C", "CENTER"):
-        return "C"
-    if p in ("PG", "SG", "G", "GUARD"):
-        return "G"
-    if p in ("SF", "PF", "F", "FORWARD"):
+    if league == "NBA":
+        if p in ("C", "CENTER"):
+            return "C"
+        if p in ("PG", "SG", "G", "GUARD"):
+            return "G"
         return "F"
-    return "F"
+    else:
+        if p in ("QB",):
+            return "QB"
+        if p in ("RB", "FB", "HB"):
+            return "RB"
+        if p in ("TE",):
+            return "TE"
+        return "WR"
 
-def get_team_logo(team_name: str) -> str:
-    return NBA_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png")
+def get_team_logo(team_name: str, league: str) -> str:
+    if league == "NBA":
+        return NBA_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png")
+    return NFL_TEAM_LOGOS.get(team_name, "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png")
 
-def build_headshot_url(athlete_id, href: str = "") -> str:
+def build_headshot_url(athlete_id, href: str = "", league: str = "NBA") -> str:
     if isinstance(href, str) and href.startswith("http"):
         return href
     if pd.notna(athlete_id):
         try:
             aid = int(float(athlete_id))
             if aid > 0:
-                return f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{aid}.png&w=96&h=70"
+                sport_path = "nba" if league == "NBA" else "nfl"
+                return f"https://a.espncdn.com/combiner/i?img=/i/headshots/{sport_path}/players/full/{aid}.png&w=96&h=70"
         except Exception:
             pass
     return DEFAULT_HEADSHOT
@@ -457,8 +563,8 @@ def ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
 
-def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", book: str = "draftkings", from_game: str = "", inj_status: str = "") -> str:
-    href = f"?player={quote_plus(player_name)}&book={book}"
+def player_badge_html(player_name: str, headshot_url: str, team_logo_url: str, pos_label: str = "", league: str = "NBA", book: str = "draftkings", from_game: str = "", inj_status: str = "") -> str:
+    href = f"?league={league}&player={quote_plus(player_name)}&book={book}"
     if from_game:
         href += f"&game={quote_plus(from_game)}"
     pos_html = f'<span class="pos-pill">{pos_label}</span>' if pos_label else ""
@@ -481,11 +587,12 @@ def get_daily_pregame_vault() -> dict:
     return {}
 
 @st.cache_data(ttl=900)
-def fetch_nba_injury_report() -> tuple[dict, dict]:
+def fetch_injury_report(league: str) -> tuple[dict, dict]:
     player_injuries = {}
     team_out_lists = {}
+    espn_path = SPORT_CONFIG[league]["espn_sport"]
     try:
-        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
+        url = f"https://site.api.espn.com/apis/site/v2/sports/{espn_path}/injuries"
         data = requests.get(url, timeout=8).json()
         for team_blk in data.get("injuries", []):
             raw_team = team_blk.get("displayName", "")
@@ -499,7 +606,7 @@ def fetch_nba_injury_report() -> tuple[dict, dict]:
                     continue
                 norm_p = normalize_name(p_name)
                 st_low = status.lower()
-                is_out = any(k in st_low for k in ("out", "suspension", "suspended", "doubtful", "inactive"))
+                is_out = any(k in st_low for k in ("out", "suspension", "suspended", "doubtful", "inactive", "injured reserve", "ir"))
                 player_injuries[norm_p] = {
                     "name": p_name,
                     "status": status,
@@ -514,75 +621,119 @@ def fetch_nba_injury_report() -> tuple[dict, dict]:
     return player_injuries, team_out_lists
 
 @st.cache_data(ttl=21600)
-def load_nba_data(seasons=(2025, 2026, 2027)):
-    frames = []
-    for yr in seasons:
-        url = f"https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_player_boxscores/player_box_{yr}.parquet"
-        try:
-            part = pd.read_parquet(url)
-            part["SEASON"] = yr
-            frames.append(part)
-        except Exception:
-            continue
-    df = pd.concat(frames, ignore_index=True)
-    df = df[df["minutes"] >= 10].copy()
-    df["game_id"] = df["game_id"].astype(str)
-    if "game_date" in df.columns:
-        df["GAME_DATE"] = pd.to_datetime(df["game_date"], errors="coerce")
-        df = df.sort_values("GAME_DATE")
+def load_sports_data(league: str):
+    if league == "NBA":
+        frames = []
+        for yr in (2025, 2026, 2027):
+            url = f"https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_player_boxscores/player_box_{yr}.parquet"
+            try:
+                part = pd.read_parquet(url)
+                part["SEASON"] = yr
+                frames.append(part)
+            except Exception:
+                continue
+        df = pd.concat(frames, ignore_index=True)
+        df = df[df["minutes"] >= 10].copy()
+        df["game_id"] = df["game_id"].astype(str)
+        df["GAME_DATE"] = pd.to_datetime(df["game_date"], errors="coerce") if "game_date" in df.columns else pd.NaT
+        df = df.sort_values("GAME_DATE").drop_duplicates(subset=["game_id", "athlete_display_name"])
+
+        rename_map = {
+            "game_id": "GAME_ID",
+            "athlete_id": "ATHLETE_ID",
+            "athlete_headshot_href": "HEADSHOT_HREF",
+            "athlete_display_name": "PLAYER_NAME",
+            "athlete_position_abbreviation": "RAW_POS",
+            "team_display_name": "TEAM_NAME",
+            "team_logo": "TEAM_LOGO",
+            "opponent_team_display_name": "OPP_NAME",
+            "home_away": "HOME_AWAY",
+            "minutes": "USAGE",
+            "points": "PTS",
+            "rebounds": "REB",
+            "assists": "AST",
+            "three_point_field_goals_made": "FG3M",
+            "field_goals_made": "FGM",
+            "field_goals_attempted": "FGA",
+        }
+        df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+        for col in ["ATHLETE_ID", "FGM", "FGA"]:
+            if col not in df.columns:
+                df[col] = np.nan
+        for col in ["HEADSHOT_HREF", "TEAM_LOGO", "HOME_AWAY", "RAW_POS"]:
+            if col not in df.columns:
+                df[col] = ""
+
+        valid_pos = df[df["RAW_POS"].astype(str).str.strip() != ""].drop_duplicates(subset=["PLAYER_NAME"], keep="last")
+        pos_map = dict(zip(valid_pos["PLAYER_NAME"], valid_pos["RAW_POS"]))
+        df["RAW_POS"] = df["PLAYER_NAME"].map(pos_map).fillna(df["RAW_POS"]).fillna("F")
+        df["POS_GROUP"] = df["RAW_POS"].apply(lambda x: map_position_group(x, "NBA"))
+        df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
+        df["PRA"] = df["PTS"] + df["REB"] + df["AST"]
+        return df
+
     else:
-        df["GAME_DATE"] = pd.NaT
+        # NFL weekly player stats via nflverse-data
+        frames = []
+        for yr in (2024, 2025, 2026):
+            url = f"https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_{yr}.parquet"
+            try:
+                part = pd.read_parquet(url)
+                part["SEASON"] = yr
+                frames.append(part)
+            except Exception:
+                continue
+        df = pd.concat(frames, ignore_index=True)
+        if "season_type" in df.columns:
+            df = df[df["season_type"].isin(["REG", "POST"])].copy()
 
-    df = df.drop_duplicates(subset=["game_id", "athlete_display_name"])
-    rename_map = {
-        "game_id": "GAME_ID",
-        "athlete_id": "ATHLETE_ID",
-        "athlete_headshot_href": "HEADSHOT_HREF",
-        "athlete_display_name": "PLAYER_NAME",
-        "athlete_position_abbreviation": "RAW_POS",
-        "team_display_name": "TEAM_NAME",
-        "team_logo": "TEAM_LOGO",
-        "opponent_team_display_name": "OPP_NAME",
-        "home_away": "HOME_AWAY",
-        "minutes": "MIN",
-        "points": "PTS",
-        "rebounds": "REB",
-        "assists": "AST",
-        "three_point_field_goals_made": "FG3M",
-        "steals": "STL",
-        "blocks": "BLK",
-        "turnovers": "TOV",
-        "field_goals_made": "FGM",
-        "field_goals_attempted": "FGA",
-        "three_point_field_goals_attempted": "FG3A",
-    }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-    for col in ["ATHLETE_ID", "FGM", "FGA", "FG3A"]:
-        if col not in df.columns:
-            df[col] = np.nan
-    for col in ["HEADSHOT_HREF", "TEAM_LOGO", "HOME_AWAY", "RAW_POS"]:
-        if col not in df.columns:
-            df[col] = ""
+        df["PLAYER_NAME"] = df["player_display_name"].fillna(df.get("player_name", ""))
+        df = df[df["PLAYER_NAME"].astype(str).str.strip() != ""].copy()
+        df["RAW_POS"] = df["position"].fillna("WR").astype(str)
+        df = df[df["RAW_POS"].isin(["QB", "RB", "WR", "TE", "FB", "HB"])].copy()
 
-    valid_pos = df[df["RAW_POS"].astype(str).str.strip() != ""].drop_duplicates(subset=["PLAYER_NAME"], keep="last")
-    pos_map = dict(zip(valid_pos["PLAYER_NAME"], valid_pos["RAW_POS"]))
-    df["RAW_POS"] = df["PLAYER_NAME"].map(pos_map).fillna(df["RAW_POS"]).fillna("F")
-    df["POS_GROUP"] = df["RAW_POS"].apply(map_position_group)
+        df["TEAM_NAME"] = df["recent_team"].map(NFL_ABBR_TO_FULL).fillna(df["recent_team"])
+        df["OPP_NAME"] = df["opponent_team"].map(NFL_ABBR_TO_FULL).fillna(df["opponent_team"])
+        df["GAME_ID"] = df["SEASON"].astype(str) + "_W" + df["week"].astype(str) + "_" + df["TEAM_NAME"]
+        # Approximate chronological date from season & week
+        df["GAME_DATE"] = pd.to_datetime(df["SEASON"].astype(str) + "-09-01") + pd.to_timedelta((df["week"] - 1) * 7, unit="D")
+        df = df.sort_values("GAME_DATE").drop_duplicates(subset=["GAME_ID", "PLAYER_NAME"])
 
-    df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
-    df["PRA"] = df["PTS"] + df["REB"] + df["AST"]
-    return df
+        df["PASS_YDS"] = df.get("passing_yards", pd.Series(0, index=df.index)).fillna(0.0)
+        df["RUSH_YDS"] = df.get("rushing_yards", pd.Series(0, index=df.index)).fillna(0.0)
+        df["REC_YDS"] = df.get("receiving_yards", pd.Series(0, index=df.index)).fillna(0.0)
+        df["REC"] = df.get("receptions", pd.Series(0, index=df.index)).fillna(0.0)
+        df["PASS_TD"] = df.get("passing_tds", pd.Series(0, index=df.index)).fillna(0.0)
+        df["RUSH_TD"] = df.get("rushing_tds", pd.Series(0, index=df.index)).fillna(0.0)
+        df["REC_TD"] = df.get("receiving_tds", pd.Series(0, index=df.index)).fillna(0.0)
+        df["RUSH_REC_YDS"] = df["RUSH_YDS"] + df["REC_YDS"]
+        df["TOTAL_PTS"] = (df["RUSH_TD"] + df["REC_TD"]) * 6.0 + df["PASS_TD"] * 4.0
+
+        # Usage proxy: Attempts + Carries + Targets
+        att = df.get("attempts", pd.Series(0, index=df.index)).fillna(0.0)
+        car = df.get("carries", pd.Series(0, index=df.index)).fillna(0.0)
+        tgt = df.get("targets", pd.Series(0, index=df.index)).fillna(0.0)
+        df["USAGE"] = np.where(df["RAW_POS"] == "QB", att + car, car + tgt)
+        df = df[df["USAGE"] >= 2].copy()
+
+        df["HEADSHOT_HREF"] = df.get("headshot_url", pd.Series("", index=df.index)).fillna("")
+        df["ATHLETE_ID"] = np.nan
+        df["TEAM_LOGO"] = df["TEAM_NAME"].apply(lambda x: get_team_logo(x, "NFL"))
+        df["HOME_AWAY"] = ""
+        df["POS_GROUP"] = df["RAW_POS"].apply(lambda x: map_position_group(x, "NFL"))
+        df["NORM_NAME"] = df["PLAYER_NAME"].apply(normalize_name)
+        return df
 
 @st.cache_data(ttl=21600)
-def build_player_media_lookup(df: pd.DataFrame) -> dict:
+def build_player_media_lookup(df: pd.DataFrame, league: str) -> dict:
     latest = df.drop_duplicates(subset=["NORM_NAME"], keep="last")
     media = {}
     for _, r in latest.iterrows():
         t_name = str(r.get("TEAM_NAME", ""))
         raw_tlogo = str(r.get("TEAM_LOGO", ""))
-        t_logo = raw_tlogo if raw_tlogo.startswith("http") else get_team_logo(t_name)
+        t_logo = raw_tlogo if raw_tlogo.startswith("http") else get_team_logo(t_name, league)
         aid = r.get("ATHLETE_ID")
-        h_url = build_headshot_url(aid, str(r.get("HEADSHOT_HREF", "")))
+        h_url = build_headshot_url(aid, str(r.get("HEADSHOT_HREF", "")), league)
         raw_p = str(r.get("RAW_POS", "")).strip() or r.get("POS_GROUP", "F")
         media[r["NORM_NAME"]] = {
             "athlete_id": int(float(aid)) if pd.notna(aid) else 0,
@@ -595,8 +746,9 @@ def build_player_media_lookup(df: pd.DataFrame) -> dict:
     return media
 
 @st.cache_data(ttl=21600)
-def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
-    stats = ["PTS", "REB", "AST", "FG3M", "PRA"]
+def compute_advanced_team_metrics(df: pd.DataFrame, league: str) -> dict:
+    stats = SPORT_CONFIG[league]["stats"]
+    pos_groups = SPORT_CONFIG[league]["pos_groups"]
     if "OPP_NAME" not in df.columns:
         return {"dvp_mult": {}, "dvp_ranks": {}, "dvp_avg": {}, "last_game": {}}
 
@@ -616,7 +768,7 @@ def compute_advanced_team_metrics(df: pd.DataFrame) -> dict:
     dvp_ranks = {}
     dvp_avg = {}
 
-    for pos_g in ["G", "F", "C"]:
+    for pos_g in pos_groups:
         if pos_g not in dvp_allowed.index.get_level_values(1):
             continue
         sub_pos = dvp_allowed.xs(pos_g, level="POS_GROUP")
@@ -656,107 +808,8 @@ def format_matchup_rating(mult: float, pos_group: str = "") -> tuple[str, str]:
         return f"{score} · Below Avg{pos_tag}", "rating-bad"
     return f"{score} · Neutral{pos_tag}", "rating-neutral"
 
-@st.cache_data(ttl=1800)
-def fetch_player_shot_chart(athlete_id: int, recent_game_ids: tuple) -> pd.DataFrame:
-    if not athlete_id or not recent_game_ids:
-        return pd.DataFrame()
-    shots = []
-    for gid in recent_game_ids[:8]:
-        try:
-            url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={gid}"
-            data = requests.get(url, timeout=6).json()
-            for play in data.get("plays", []):
-                if not play.get("shootingPlay"):
-                    continue
-                participants = play.get("participants", [])
-                if not participants:
-                    continue
-                shooter_id = participants[0].get("athlete", {}).get("id")
-                if str(shooter_id) != str(athlete_id):
-                    continue
-                coord = play.get("coordinate", {})
-                cx, cy = coord.get("x"), coord.get("y")
-                if cx is None or cy is None:
-                    continue
-                fx, fy = float(cx), float(cy)
-                if fy > 47:
-                    fy = 94.0 - fy
-                    fx = 50.0 - fx
-                court_x = fx - 25.0
-                court_y = max(0.0, fy)
-                made = bool(play.get("scoringPlay"))
-                pts_val = int(play.get("scoreValue", 2))
-                dist = np.hypot(court_x, court_y - 5.25)
-                if pts_val == 3:
-                    zone = "3-Point"
-                elif dist <= 8.0:
-                    zone = "Paint / Rim"
-                else:
-                    zone = "Mid-Range"
-                shots.append({
-                    "x": court_x,
-                    "y": court_y,
-                    "made": made,
-                    "zone": zone,
-                    "text": play.get("text", ""),
-                })
-        except Exception:
-            continue
-    return pd.DataFrame(shots)
-
-def build_shot_chart_figure(shots_df: pd.DataFrame, player_name: str) -> go.Figure:
-    fig = go.Figure()
-    line_col = "#334155"
-    shapes = [
-        dict(type="rect", x0=-25, y0=0, x1=25, y1=47, line=dict(color=line_col, width=2)),
-        dict(type="rect", x0=-8, y0=0, x1=8, y1=19, line=dict(color=line_col, width=1.5)),
-        dict(type="circle", x0=-6, y0=13, x1=6, y1=25, line=dict(color=line_col, width=1.5)),
-        dict(type="line", x0=-3, y0=4, x1=3, y1=4, line=dict(color="#94A3B8", width=2.5)),
-        dict(type="circle", x0=-0.75, y0=4.5, x1=0.75, y1=6.0, line=dict(color="#F59E0B", width=2)),
-        dict(type="line", x0=-22, y0=0, x1=-22, y1=14, line=dict(color=line_col, width=1.8)),
-        dict(type="line", x0=22, y0=0, x1=22, y1=14, line=dict(color=line_col, width=1.8)),
-    ]
-
-    theta = np.linspace(np.arcsin(8.75 / 23.75), np.pi - np.arcsin(8.75 / 23.75), 100)
-    arc_x = 23.75 * np.cos(theta)
-    arc_y = 5.25 + 23.75 * np.sin(theta)
-    fig.add_trace(go.Scatter(
-        x=arc_x, y=arc_y, mode="lines",
-        line=dict(color=line_col, width=1.8),
-        hoverinfo="skip", showlegend=False
-    ))
-
-    if not shots_df.empty:
-        made_df = shots_df[shots_df["made"]]
-        miss_df = shots_df[~shots_df["made"]]
-        fig.add_trace(go.Scatter(
-            x=miss_df["x"], y=miss_df["y"], mode="markers",
-            name=f"Missed ({len(miss_df)})",
-            marker=dict(symbol="x", size=8, color="#EF4444", opacity=0.8),
-            text=miss_df["text"], hovertemplate="%{text}<extra></extra>"
-        ))
-        fig.add_trace(go.Scatter(
-            x=made_df["x"], y=made_df["y"], mode="markers",
-            name=f"Made ({len(made_df)})",
-            marker=dict(symbol="circle", size=9, color="#10B981", line=dict(color="#064E3B", width=1)),
-            text=made_df["text"], hovertemplate="%{text}<extra></extra>"
-        ))
-
-    fig.update_layout(
-        shapes=shapes,
-        paper_bgcolor="#111622",
-        plot_bgcolor="#0D121C",
-        margin=dict(l=10, r=10, t=36, b=10),
-        height=390,
-        title=dict(text=f"{player_name} · Shot Chart (Recent Games)", font=dict(size=14, color="#F8FAFC")),
-        xaxis=dict(range=[-25.5, 25.5], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True),
-        yaxis=dict(range=[-0.5, 47.5], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1, fixedrange=True),
-        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(color="#CBD5E1", size=11))
-    )
-    return fig
-
-def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, player_name: str) -> go.Figure:
-    recent = p_df.tail(20).copy()
+def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, player_name: str, league: str) -> go.Figure:
+    recent = p_df.tail(16 if league == "NFL" else 20).copy()
     dates = recent["GAME_DATE"].dt.strftime("%b %d").fillna("Game")
     opps = recent["OPP_NAME"].apply(lambda x: str(x).split()[-1])
     labels = [f"{d}<br>vs {o}" for d, o in zip(dates, opps)]
@@ -771,7 +824,7 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
         text=[f"{v:.0f}" for v in vals],
         textposition="outside",
         textfont=dict(color="#E2E8F0", size=11),
-        hovertemplate="<b>%{x}</b><br>" + stat_col + ": %{y:.0f}<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>" + stat_col + ": %{y:.1f}<extra></extra>"
     ))
     fig.add_hline(
         y=line_val,
@@ -782,7 +835,7 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
         annotation_position="top left",
         annotation_font=dict(color="#38BDF8", size=12)
     )
-    max_y = max(float(np.max(vals)) * 1.22, line_val * 1.35, 5.0)
+    max_y = max(float(np.max(vals)) * 1.22, line_val * 1.35, 3.0)
     fig.update_layout(
         paper_bgcolor="#111622",
         plot_bgcolor="#111622",
@@ -796,19 +849,28 @@ def build_hit_rate_chart(p_df: pd.DataFrame, stat_col: str, line_val: float, pla
     return fig
 
 @st.cache_data(ttl=600)
-def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int = 12):
+def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", max_games: int = 16):
     et_tz = ZoneInfo("America/New_York")
     now_utc = datetime.now(timezone.utc)
     now_et = now_utc.astimezone(et_tz)
     today_date_et = now_et.date()
-    date_key = f"{today_date_et.isoformat()}_{bookmaker}"
+    date_key = f"{league}_{today_date_et.isoformat()}_{bookmaker}"
+
+    cfg = SPORT_CONFIG[league]
+    sport_key = cfg["sport_key"]
+    default_total = cfg["default_total"]
+    market_list = cfg["markets"]
+    stat_map = cfg["market_map"]
 
     vault = get_daily_pregame_vault()
     day_bucket = vault.setdefault(date_key, {"games": {}, "props": {}})
 
     try:
-        events = pl_client.get_events("basketball_nba")
+        events = pl_client.get_events(sport_key)
         pregame_events = []
+
+        # For NBA use today's games; for NFL use upcoming 7-day weekly slate
+        horizon = timedelta(days=1) if league == "NBA" else timedelta(days=7)
 
         for ev in events:
             c_str = ev.get("commence_time", "")
@@ -816,18 +878,20 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
                 continue
             tip_utc = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
             tip_et = tip_utc.astimezone(et_tz)
-            if tip_et.date() != today_date_et:
+            if league == "NBA" and tip_et.date() != today_date_et:
+                continue
+            if league == "NFL" and not (now_utc <= tip_utc <= now_utc + horizon):
                 continue
 
             away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
             home = ESPN_TO_ODDS_TEAM.get(ev.get("home_team", ""), ev.get("home_team", ""))
             lbl = f"{away} @ {home}"
-            tip_str = tip_et.strftime("%I:%M %p ET").lstrip("0")
+            tip_str = tip_et.strftime("%a %I:%M %p ET").lstrip("0") if league == "NFL" else tip_et.strftime("%I:%M %p ET").lstrip("0")
             event_id = ev.get("id")
 
             day_bucket["games"][lbl] = {
                 "spread_home": 0.0,
-                "total": 228.0,
+                "total": default_total,
                 "id": event_id,
                 "tip_str": tip_str,
                 "tip_utc": tip_utc.isoformat(),
@@ -837,7 +901,6 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
                 pregame_events.append(ev)
 
         pregame_events.sort(key=lambda x: x["_tip_et"])
-        market_list = ["player_points", "player_rebounds", "player_assists", "player_threes", "player_points_rebounds_assists", "spreads", "totals"]
 
         for ev in pregame_events[:max_games]:
             away = ESPN_TO_ODDS_TEAM.get(ev.get("away_team", ""), ev.get("away_team", ""))
@@ -845,10 +908,10 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
             lbl = f"{away} @ {home}"
             event_id = ev.get("id")
 
-            odds_data = pl_client.get_odds("basketball_nba", event_id=event_id, markets=market_list)
+            odds_data = pl_client.get_odds(sport_key, event_id=event_id, markets=market_list)
             
             spread_home = 0.0
-            total_line = 228.0
+            total_line = default_total
             candidates = {}
 
             for book in odds_data.get("bookmakers", []):
@@ -863,13 +926,6 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
                             if o.get("name") == "Over" and o.get("point") is not None:
                                 total_line = float(o["point"])
                     else:
-                        stat_map = {
-                            "player_points": "PTS",
-                            "player_rebounds": "REB",
-                            "player_assists": "AST",
-                            "player_threes": "FG3M",
-                            "player_points_rebounds_assists": "PRA"
-                        }
                         stat_code = stat_map.get(m_key)
                         if not stat_code:
                             continue
@@ -913,7 +969,7 @@ def fetch_and_lock_propline_slate(bookmaker: str = "draftkings", max_games: int 
         pass
 
     all_game_labels = sorted(day_bucket["games"].keys(), key=lambda k: day_bucket["games"][k].get("tip_utc", ""))
-    slate_date_label = today_date_et.strftime("%A, %b %d")
+    slate_date_label = today_date_et.strftime("%A, %b %d") if league == "NBA" else f"Week Slate ({today_date_et.strftime('%b %d')})"
     fetched_at = now_et.strftime("%I:%M %p ET")
     return all_game_labels, day_bucket["games"], day_bucket["props"], fetched_at, slate_date_label
 
@@ -941,23 +997,23 @@ def get_no_vig_prob(odds_selected: int, odds_opposing: int = 0) -> float:
         return p_sel / (p_sel + p_opp)
     return p_sel * 0.955
 
-def exp_weighted_mean(values: np.ndarray, decay: float = 0.94) -> float:
+def exp_weighted_mean(values: np.ndarray, decay: float = 0.93) -> float:
     n = len(values)
     weights = decay ** np.arange(n - 1, -1, -1)
     return float(np.sum(values * weights) / np.sum(weights))
 
-def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.94) -> float:
+def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.93) -> float:
     n = len(values)
     weights = decay ** np.arange(n - 1, -1, -1)
     var = np.sum(weights * (values - mean_val) ** 2) / np.sum(weights)
-    return float(np.sqrt(max(var, 0.65)))
+    return float(np.sqrt(max(var, 0.45)))
 
 def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series: pd.Series) -> float:
-    emp_recent = (emp_series.tail(15) > line).mean()
-    emp_season = (emp_series.tail(40) > line).mean()
+    emp_recent = (emp_series.tail(10) > line).mean()
+    emp_season = (emp_series.tail(25) > line).mean()
     emp_blend = 0.65 * emp_recent + 0.35 * emp_season
 
-    if proj_mean <= 0.1:
+    if proj_mean <= 0.05:
         return 0.01
 
     variance = max(proj_std ** 2, proj_mean * 1.05)
@@ -965,33 +1021,37 @@ def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series:
     scale_theta = variance / proj_mean
     dist_over = float(1.0 - gamma.cdf(line, a=shape_k, scale=scale_theta))
 
-    w_dist = min(0.70, max(0.50, len(emp_series) / 80.0))
+    w_dist = min(0.70, max(0.50, len(emp_series) / 40.0))
     return float(np.clip(w_dist * dist_over + (1.0 - w_dist) * emp_blend, 0.02, 0.98))
 
-def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict) -> pd.DataFrame:
+def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dict, team_metrics: dict, media_lookup: dict, injury_map: dict, league: str) -> pd.DataFrame:
     rows = []
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     dvp_mults_all = team_metrics["dvp_mult"]
     last_games = team_metrics["last_game"]
     today_ts = pd.Timestamp.now().normalize()
+    default_total = SPORT_CONFIG[league]["default_total"]
+    min_games_req = 12 if league == "NBA" else 5
 
     team_usage_bump = {}
     for norm_inj, inj_info in injury_map.items():
         if inj_info.get("is_out") and norm_inj in grouped:
-            inj_mins = grouped[norm_inj]["MIN"].tail(15).mean()
-            if inj_mins >= 24.0:
+            inj_usage = grouped[norm_inj]["USAGE"].tail(10).mean()
+            threshold = 24.0 if league == "NBA" else 6.0
+            if inj_usage >= threshold:
                 tm = inj_info.get("team", "")
-                team_usage_bump[tm] = min(1.08, team_usage_bump.get(tm, 1.0) + 0.035)
+                team_usage_bump[tm] = min(1.09, team_usage_bump.get(tm, 1.0) + 0.035)
 
     for game_label, game_props in slate_props.items():
         teams_in_game = [t.strip() for t in game_label.split("@")]
         if len(teams_in_game) != 2:
             continue
         away_team, home_team = teams_in_game[0], teams_in_game[1]
-        g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": 228.0})
+        g_line_info = game_lines.get(game_label, {"spread_home": 0.0, "total": default_total})
         vegas_total = g_line_info["total"]
-        abs_spread = abs(g_line_info["spread_home"])
-        vegas_pace_mult = 1.0 + 0.25 * ((vegas_total - 228.0) / 228.0)
+        spread_home = g_line_info["spread_home"]
+        abs_spread = abs(spread_home)
+        vegas_pace_mult = 1.0 + 0.30 * ((vegas_total - default_total) / default_total)
 
         for norm_p, p_data in game_props.items():
             inj_rec = injury_map.get(norm_p, {})
@@ -1001,7 +1061,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             if norm_p not in grouped:
                 continue
             p_df = grouped[norm_p]
-            if len(p_df) < 12:
+            if len(p_df) < min_games_req:
                 continue
 
             player_team = p_df["TEAM_NAME"].iloc[-1]
@@ -1012,20 +1072,29 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
             pos_group = p_media.get("pos_group", p_df["POS_GROUP"].iloc[-1])
             raw_pos = p_media.get("raw_pos", pos_group)
             headshot_url = p_media.get("headshot", DEFAULT_HEADSHOT)
-            team_logo_url = get_team_logo(player_team)
+            team_logo_url = get_team_logo(player_team, league)
 
             opp_pos_mults = dvp_mults_all.get(opp_team, {}).get(pos_group, {})
 
-            min_vals = p_df["MIN"].dropna().tail(30).values
-            proj_min = exp_weighted_mean(min_vals, decay=0.90)
+            usage_vals = p_df["USAGE"].dropna().tail(20).values
+            proj_usage = exp_weighted_mean(usage_vals, decay=0.91)
 
-            if abs_spread >= 11.5 and proj_min >= 28.0:
-                proj_min *= 0.96
+            # Game-script adjustments
+            script_mult = 1.0
+            if league == "NBA":
+                if abs_spread >= 11.5 and proj_usage >= 28.0:
+                    proj_usage *= 0.96
+            else:
+                # NFL game script: favorites run more, underdogs throw more
+                team_spread = spread_home if is_home else -spread_home
+                if team_spread <= -6.5 and pos_group == "RB":
+                    script_mult = 1.05
+                elif team_spread >= 6.5 and pos_group in ("QB", "WR", "TE"):
+                    script_mult = 1.04
 
             b2b_mult = 1.0
-            if player_team in last_games:
-                days_rest = (today_ts - last_games[player_team]).days
-                if days_rest == 1:
+            if league == "NBA" and player_team in last_games:
+                if (today_ts - last_games[player_team]).days == 1:
                     b2b_mult = 0.975
 
             loc_mult = 1.012 if is_home else 0.988
@@ -1035,21 +1104,21 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 if stat not in p_df.columns or "Over" not in info or "Under" not in info:
                     continue
                 
-                valid_df = p_df[["MIN", stat]].dropna().tail(50)
-                if len(valid_df) < 12:
+                valid_df = p_df[["USAGE", stat]].dropna().tail(35)
+                if len(valid_df) < min_games_req:
                     continue
 
-                per_min_rates = (valid_df[stat] / valid_df["MIN"]).values
-                season_rate = float(np.mean(per_min_rates))
-                recent_rate = exp_weighted_mean(per_min_rates, decay=0.94)
-                blended_rate = 0.70 * season_rate + 0.30 * recent_rate
+                per_unit_rates = (valid_df[stat] / np.maximum(valid_df["USAGE"], 1.0)).values
+                season_rate = float(np.mean(per_unit_rates))
+                recent_rate = exp_weighted_mean(per_unit_rates, decay=0.93)
+                blended_rate = 0.65 * season_rate + 0.35 * recent_rate
 
-                base_proj = blended_rate * proj_min
+                base_proj = blended_rate * proj_usage
                 raw_dvp = opp_pos_mults.get(stat, 1.0)
                 damp_dvp = 1.0 + 0.65 * (raw_dvp - 1.0)
-                total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult
+                total_env_mult = damp_dvp * vegas_pace_mult * loc_mult * b2b_mult * usage_mult * script_mult
                 proj = base_proj * total_env_mult
-                std = exp_weighted_std(valid_df[stat].values, proj, decay=0.94)
+                std = exp_weighted_std(valid_df[stat].values, proj, decay=0.93)
 
                 main_line = info["line"]
                 all_lines_dict = info.get("all_lines", {main_line: {"Over": info["Over"], "Under": info["Under"]}})
@@ -1057,6 +1126,9 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                 for line_val, sides in all_lines_dict.items():
                     is_alt = not np.isclose(line_val, main_line, atol=0.01)
                     for side in ("Over", "Under"):
+                        # Block Alternate Unders (not offered on US sportsbooks)
+                        if is_alt and side == "Under":
+                            continue
                         if side not in sides:
                             continue
                         odds = int(sides[side])
@@ -1108,139 +1180,124 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
     return pd.DataFrame(rows).sort_values(by="BlendedScore", ascending=False).reset_index(drop=True)
 
 @st.cache_data(ttl=1800)
-def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, out_players_key: tuple = (), n_sims: int = 15000):
+def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_metrics: dict, game_line: dict, media_lookup: dict, league: str, out_players_key: tuple = (), n_sims: int = 15000):
     dvp_mults_all = team_metrics["dvp_mult"]
-    last_games = team_metrics["last_game"]
-    today_ts = pd.Timestamp.now().normalize()
-    vegas_total = game_line.get("total", 228.0)
+    default_total = SPORT_CONFIG[league]["default_total"]
+    vegas_total = game_line.get("total", default_total)
     vegas_spread_home = game_line.get("spread_home", 0.0)
     max_season = df["SEASON"].max()
     out_set = set(out_players_key)
 
+    pts_col = "PTS" if league == "NBA" else "TOTAL_PTS"
     recent_season_df = df[df["SEASON"] >= max_season - 1]
-    team_game_pts = recent_season_df.groupby(["TEAM_NAME", "GAME_ID"])["PTS"].sum().groupby("TEAM_NAME").mean().to_dict()
-    opp_game_pts = recent_season_df.groupby(["OPP_NAME", "GAME_ID"])["PTS"].sum().groupby("OPP_NAME").mean().to_dict()
-    lg_avg_pts = float(np.mean(list(team_game_pts.values()))) if team_game_pts else 114.0
+    team_game_pts = recent_season_df.groupby(["TEAM_NAME", "GAME_ID"])[pts_col].sum().groupby("TEAM_NAME").mean().to_dict()
+    lg_avg_pts = float(np.mean(list(team_game_pts.values()))) if team_game_pts else (default_total / 2.0)
 
     def get_rotation(team: str, opp: str, is_home: bool):
         t_df = df[df["TEAM_NAME"] == team].copy()
         if t_df.empty:
-            return np.full(n_sims, 114.0), pd.DataFrame()
+            return np.full(n_sims, default_total / 2.0), pd.DataFrame()
 
         curr_season_df = t_df[t_df["SEASON"] == max_season]
         active_pool = curr_season_df if not curr_season_df.empty else t_df
         active_pool = active_pool[~active_pool["NORM_NAME"].isin(out_set)]
 
-        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(10)
+        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(8 if league == "NFL" else 10)
         recent_df = active_pool[active_pool["GAME_ID"].isin(recent_games)]
 
         rot_players = (
-            recent_df.groupby("PLAYER_NAME")["MIN"]
+            recent_df.groupby("PLAYER_NAME")["USAGE"]
             .agg(["count", "mean"])
             .query("count >= 2")
             .sort_values(by="mean", ascending=False)
-            .head(9)
+            .head(8 if league == "NFL" else 9)
             .index.tolist()
         )
         if not rot_players:
-            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:9]
+            rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:8]
 
         sub = t_df[t_df["PLAYER_NAME"].isin(rot_players)]
         loc_mult = 1.012 if is_home else 0.988
-        b2b_mult = 0.978 if (team in last_games and (today_ts - last_games[team]).days == 1) else 1.0
-
-        raw_mins = [exp_weighted_mean(sub[sub["PLAYER_NAME"] == p].tail(35)["MIN"].values, decay=0.90) for p in rot_players]
-        total_raw_m = sum(raw_mins)
-        norm_mins = [(m / total_raw_m) * 240.0 for m in raw_mins] if total_raw_m > 0 else [240.0 / max(len(rot_players), 1)] * len(rot_players)
-        norm_mins = [min(39.5, m) for m in norm_mins]
-        if sum(norm_mins) > 0:
-            norm_mins = [(m / sum(norm_mins)) * 240.0 for m in norm_mins]
+        sim_cols = ["PTS", "REB", "AST", "FG3M"] if league == "NBA" else ["PASS_YDS", "RUSH_YDS", "REC_YDS", "REC"]
 
         player_params = []
-        for p, mins in zip(rot_players, norm_mins):
-            p_sub = sub[sub["PLAYER_NAME"] == p].tail(35)
+        for p in rot_players:
+            p_sub = sub[sub["PLAYER_NAME"] == p].tail(25)
             norm_p = normalize_name(p)
             p_media = media_lookup.get(norm_p, {})
             pos_g = p_media.get("pos_group", p_sub["POS_GROUP"].iloc[-1])
             opp_pos_mults = dvp_mults_all.get(opp, {}).get(pos_g, {})
+            proj_u = exp_weighted_mean(p_sub["USAGE"].values, decay=0.91)
 
             stats_proj = {}
-            for st_col in ["PTS", "REB", "AST", "FG3M"]:
-                rates = (p_sub[st_col] / p_sub["MIN"]).values
-                season_r = float(np.mean(rates))
-                recent_r = exp_weighted_mean(rates, decay=0.94)
-                blended_r = 0.70 * season_r + 0.30 * recent_r
-                base = blended_r * mins
-                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * (vegas_total / 228.0) * loc_mult * b2b_mult
-                mean_val = float(base * mult)
-                std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.94)
+            for st_col in sim_cols:
+                rates = (p_sub[st_col] / np.maximum(p_sub["USAGE"], 1.0)).values
+                blended_r = 0.65 * float(np.mean(rates)) + 0.35 * exp_weighted_mean(rates, decay=0.93)
+                mult = (1.0 + 0.50 * (opp_pos_mults.get(st_col, 1.0) - 1.0)) * (vegas_total / default_total) * loc_mult
+                mean_val = float(blended_r * proj_u * mult)
+                std_val = exp_weighted_std(p_sub[st_col].values, mean_val, decay=0.93)
                 stats_proj[st_col] = (mean_val, std_val)
-            player_params.append({"player": p, "min": mins, "stats": stats_proj})
-
-        piv_pts = sub.pivot(index="GAME_ID", columns="PLAYER_NAME", values="PTS").reindex(columns=rot_players)
-        corr = piv_pts.corr(min_periods=6).fillna(0.0).to_numpy().copy()
-        np.fill_diagonal(corr, 1.0)
-
-        eigvals, eigvecs = np.linalg.eigh(corr)
-        eigvals = np.maximum(eigvals, 0.05)
-        corr_psd = eigvecs @ np.diag(eigvals) @ eigvecs.T
-        d = np.sqrt(np.diag(corr_psd))
-        corr_psd = corr_psd / np.outer(d, d)
+            player_params.append({"player": p, "usage": proj_u, "stats": stats_proj})
 
         rng = np.random.default_rng(42)
-        z = rng.multivariate_normal(np.zeros(len(rot_players)), corr_psd, size=n_sims)
-        u = norm.cdf(z)
-        sim_pts_matrix = np.zeros((n_sims, len(rot_players)))
         box_rows = []
-        team_logo_url = get_team_logo(team)
+        team_logo_url = get_team_logo(team, league)
 
-        for idx, p_info in enumerate(player_params):
-            pts_m, pts_s = p_info["stats"]["PTS"]
-            var_p = max(pts_s ** 2, pts_m * 1.05)
-            sim_p = gamma.ppf(np.clip(u[:, idx], 0.001, 0.999), a=(pts_m ** 2) / var_p, scale=var_p / max(pts_m, 0.1))
-            sim_pts_matrix[:, idx] = sim_p
+        def sim_gamma_stat(m_val, s_val):
+            if m_val <= 0.1:
+                return np.zeros(n_sims)
+            v = max(s_val ** 2, m_val * 1.05)
+            return rng.gamma(shape=(m_val ** 2) / v, scale=v / m_val, size=n_sims)
 
-            def sim_gamma_stat(m_val, s_val):
-                if m_val <= 0.1:
-                    return np.zeros(n_sims)
-                v = max(s_val ** 2, m_val * 1.05)
-                return rng.gamma(shape=(m_val ** 2) / v, scale=v / m_val, size=n_sims)
-
-            sim_r = sim_gamma_stat(*p_info["stats"]["REB"])
-            sim_a = sim_gamma_stat(*p_info["stats"]["AST"])
-            sim_3 = sim_gamma_stat(*p_info["stats"]["FG3M"])
-
+        for p_info in player_params:
             norm_p = normalize_name(p_info["player"])
             p_media = media_lookup.get(norm_p, {})
-            box_rows.append({
-                "Player": p_info["player"],
-                "Pos": p_media.get("raw_pos", "F"),
-                "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
-                "TeamLogo": team_logo_url,
-                "MIN": round(p_info["min"], 1),
-                "PTS": round(float(np.mean(sim_p)), 1),
-                "REB": round(float(np.mean(sim_r)), 1),
-                "AST": round(float(np.mean(sim_a)), 1),
-                "3PM": round(float(np.mean(sim_3)), 1),
-                "PRA": round(float(np.mean(sim_p + sim_r + sim_a)), 1),
-            })
+            if league == "NBA":
+                s_pts = sim_gamma_stat(*p_info["stats"]["PTS"])
+                s_reb = sim_gamma_stat(*p_info["stats"]["REB"])
+                s_ast = sim_gamma_stat(*p_info["stats"]["AST"])
+                s_3pm = sim_gamma_stat(*p_info["stats"]["FG3M"])
+                box_rows.append({
+                    "Player": p_info["player"],
+                    "Pos": p_media.get("raw_pos", "F"),
+                    "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
+                    "TeamLogo": team_logo_url,
+                    "USG": round(p_info["usage"], 1),
+                    "S1": round(float(np.mean(s_pts)), 1),
+                    "S2": round(float(np.mean(s_reb)), 1),
+                    "S3": round(float(np.mean(s_ast)), 1),
+                    "S4": round(float(np.mean(s_3pm)), 1),
+                    "COMBO": round(float(np.mean(s_pts + s_reb + s_ast)), 1),
+                })
+            else:
+                s_pass = sim_gamma_stat(*p_info["stats"]["PASS_YDS"])
+                s_rush = sim_gamma_stat(*p_info["stats"]["RUSH_YDS"])
+                s_recy = sim_gamma_stat(*p_info["stats"]["REC_YDS"])
+                s_rec = sim_gamma_stat(*p_info["stats"]["REC"])
+                box_rows.append({
+                    "Player": p_info["player"],
+                    "Pos": p_media.get("raw_pos", "WR"),
+                    "Headshot": p_media.get("headshot", DEFAULT_HEADSHOT),
+                    "TeamLogo": team_logo_url,
+                    "USG": round(p_info["usage"], 1),
+                    "S1": round(float(np.mean(s_pass)), 1),
+                    "S2": round(float(np.mean(s_rush)), 1),
+                    "S3": round(float(np.mean(s_recy)), 1),
+                    "S4": round(float(np.mean(s_rec)), 1),
+                    "COMBO": round(float(np.mean(s_rush + s_recy)), 1),
+                })
 
-        raw_team_sim = sim_pts_matrix.sum(axis=1)
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
-        expected_team_pts = 0.50 * team_game_pts.get(team, lg_avg_pts) + 0.50 * vegas_implied
-        expected_team_pts = max(104.0, expected_team_pts)
-
-        shift = expected_team_pts - float(np.mean(raw_team_sim))
-        calibrated_scores = raw_team_sim + shift
-        calibrated_scores = np.maximum(100.0, calibrated_scores)
-        return calibrated_scores, pd.DataFrame(box_rows)
+        hist_team_pts = team_game_pts.get(team, lg_avg_pts)
+        if league == "NFL":
+            hist_team_pts = max(16.0, min(32.0, hist_team_pts + 6.0)) # account for FG kicking
+        expected_team_pts = 0.45 * hist_team_pts + 0.55 * vegas_implied
+        sim_scores = rng.normal(expected_team_pts, 8.5 if league == "NFL" else 11.0, size=n_sims)
+        sim_scores = np.maximum(3.0 if league == "NFL" else 88.0, sim_scores)
+        return sim_scores, pd.DataFrame(box_rows)
 
     away_scores, away_box = get_rotation(away_team, home_team, is_home=False)
     home_scores, home_box = get_rotation(home_team, away_team, is_home=True)
-
-    rng = np.random.default_rng(99)
-    ties = np.isclose(away_scores, home_scores, atol=0.1)
-    away_scores[ties] += rng.normal(0, 3.0, size=ties.sum())
 
     away_win_prob = float(np.mean(away_scores > home_scores))
     home_win_prob = 1.0 - away_win_prob
@@ -1258,7 +1315,7 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         "home_box": home_box,
     }
 
-def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_map: dict, min_games: int = 15) -> pd.DataFrame:
+def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_map: dict, league: str, min_games: int = 8) -> pd.DataFrame:
     active_norms = [
         np_name for np_name in game_props.keys()
         if np_name in set(df["NORM_NAME"]) and not injury_map.get(np_name, {}).get("is_out")
@@ -1267,7 +1324,7 @@ def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_
     if sub.empty:
         return pd.DataFrame()
 
-    stats = ["PTS", "REB", "AST", "FG3M"]
+    stats = ["PTS", "REB", "AST", "FG3M"] if league == "NBA" else ["PASS_YDS", "RUSH_YDS", "REC_YDS", "REC"]
     pivoted = sub.pivot(index="GAME_ID", columns="NORM_NAME", values=stats)
     pivoted.columns = [f"{p}|{s}" for s, p in pivoted.columns]
 
@@ -1303,76 +1360,13 @@ def build_auto_sgps(df: pd.DataFrame, game_label: str, game_props: dict, injury_
                 "Book Naive": prob_to_american(p_a * p_b),
                 "True Fair": prob_to_american(joint_p),
             })
-        elif c_val <= -0.22:
-            p_a = get_no_vig_prob(st1["Over"], st1.get("Under", 0))
-            p_b = get_no_vig_prob(st2["Under"], st2.get("Over", 0))
-            eff_corr = abs(c_val)
-            z = np.random.multivariate_normal([0, 0], [[1, eff_corr], [eff_corr, 1]], size=40000)
-            u = norm.cdf(z)
-            joint_p = float(np.mean((u[:, 0] < p_a) & (u[:, 1] < p_b)))
-            sgp_rows.append({
-                "Game": game_label,
-                "Angle": "Negative Fade",
-                "Leg 1": f"{game_props[p1]['display_name']} Over {st1['line']} {s1} ({st1['Over']:+d})",
-                "Leg 2": f"{game_props[p2]['display_name']} Under {st2['line']} {s2} ({st2['Under']:+d})",
-                "Correlation": round(float(c_val), 3),
-                "Book Naive": prob_to_american(p_a * p_b),
-                "True Fair": prob_to_american(joint_p),
-            })
 
     if not sgp_rows:
         return pd.DataFrame()
     res_df = pd.DataFrame(sgp_rows)
     return res_df.reindex(res_df["Correlation"].abs().sort_values(ascending=False).index).head(15).reset_index(drop=True)
 
-def price_sgp(df: pd.DataFrame, legs: list, book_sgp_odds: int, n_sims: int = 100000):
-    merged = None
-    col_names = []
-    labels = []
-    for i, leg in enumerate(legs):
-        col = f"L{i}_{leg['player']}_{leg['stat']}"
-        col_names.append(col)
-        labels.append(f"{leg['player']} ({leg['side']} {leg['stat']})")
-        sub = df[df["PLAYER_NAME"] == leg["player"]][["GAME_ID", leg["stat"]]].rename(columns={leg["stat"]: col})
-        if leg["side"] == "Under":
-            sub[col] = -sub[col]
-        merged = sub if merged is None else pd.merge(merged, sub, on="GAME_ID")
-
-    if len(merged) < 10:
-        return {"error": f"Only {len(merged)} shared games found. Pick teammates or frequent opponents."}
-
-    corr_matrix = merged[col_names].corr().to_numpy().copy()
-    np.fill_diagonal(corr_matrix, 1.0)
-    corr_df = pd.DataFrame(np.round(corr_matrix, 3), index=labels, columns=labels)
-    fair_probs = [get_no_vig_prob(leg["odds"], leg.get("opp_odds", 0)) for leg in legs]
-
-    z = np.random.multivariate_normal(np.zeros(len(legs)), corr_matrix, size=n_sims)
-    u = norm.cdf(z)
-
-    hits = np.ones(n_sims, dtype=bool)
-    for i, p in enumerate(fair_probs):
-        hits &= (u[:, i] < p)
-
-    joint_prob = float(np.mean(hits))
-    indep_prob = float(np.prod(fair_probs))
-    book_dec = american_to_decimal(book_sgp_odds)
-    ev_pct = (joint_prob * book_dec - 1) * 100
-
-    return {
-        "shared_games": len(merged),
-        "corr_df": corr_df,
-        "fair_leg_probs": [round(p * 100, 1) for p in fair_probs],
-        "naive_odds": prob_to_american(indep_prob),
-        "fair_odds": prob_to_american(joint_prob),
-        "fair_prob": joint_prob,
-        "ev_pct": ev_pct
-    }
-
 def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, locked_labels: list, exact_legs: int = 4, use_alts: bool = True, exclude_norms: list = None):
-    """
-    Guarantees reaching target_american_odds across up to exact_legs by dynamically
-    leveraging main lines and alternate line milestones across distinct players.
-    """
     if edges_df.empty:
         return pd.DataFrame(), 0, 0.0, "No active props available."
 
@@ -1384,43 +1378,45 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
     if not use_alts:
         pool = pool[~pool["IsAlt"]]
 
+    # Enforce U.S. bookmaker rules: never use Alternate Unders
+    pool = pool[~((pool["IsAlt"]) & (pool["Side"] == "Under"))]
     pool["PickLabel"] = pool["Player"] + " — " + pool["Line"] + " (" + pool["Odds"].apply(lambda x: f"{x:+d}") + ")"
 
     selected_rows = []
     used_players = set()
+    under_players = set()
     current_dec = 1.0
 
-    # 1. Lock in user's chosen anchor legs first
     for lbl in locked_labels:
         match = pool[pool["PickLabel"] == lbl]
         if not match.empty:
             row = match.iloc[0]
             selected_rows.append(row)
             used_players.add(row["NORM_NAME"])
+            if row["Side"] == "Under":
+                under_players.add(row["NORM_NAME"])
             current_dec *= american_to_decimal(int(row["Odds"]))
 
-    # 2. Fill remaining legs up to exact_legs while ensuring total decimal odds >= target_dec
     while len(selected_rows) < exact_legs:
         rem_legs = exact_legs - len(selected_rows)
         needed_dec = max(1.01, target_dec / current_dec)
-        # Required average decimal odds per remaining leg to clear target
         req_avg_dec = needed_dec ** (1.0 / rem_legs)
 
-        avail = pool[(~pool["NORM_NAME"].isin(used_players)) & (~pool["NORM_NAME"].isin(exclude_norms))].copy()
+        avail = pool[
+            (~pool["NORM_NAME"].isin(used_players)) &
+            (~pool["NORM_NAME"].isin(exclude_norms)) &
+            ~((pool["Side"] == "Under") & (pool["NORM_NAME"].isin(under_players)))
+        ].copy()
         if avail.empty:
             break
 
         avail["DecOdds"] = avail["Odds"].apply(american_to_decimal)
-        # Filter candidates that contribute enough odds to stay on pace for target_dec
         pace_cands = avail[avail["DecOdds"] >= req_avg_dec * 0.90]
         if pace_cands.empty:
-            # Fallback to the highest-paying available alternate/main lines
             pace_cands = avail.sort_values(by=["DecOdds", "BlendedScore"], ascending=[False, False])
         else:
-            # Among lines that keep us on pace, pick the highest model confidence & matchup alignment
             pace_cands = pace_cands.sort_values(by=["BlendedScore", "Win Prob"], ascending=[False, False])
 
-        # Prefer distinct games first if available
         used_games = {r["FullMatchup"] for r in selected_rows}
         diff_game_cands = pace_cands[~pace_cands["FullMatchup"].isin(used_games)]
         chosen_pool = diff_game_cands if not diff_game_cands.empty else pace_cands
@@ -1428,6 +1424,8 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
         best_cand = chosen_pool.iloc[0]
         selected_rows.append(best_cand)
         used_players.add(best_cand["NORM_NAME"])
+        if best_cand["Side"] == "Under":
+            under_players.add(best_cand["NORM_NAME"])
         current_dec *= american_to_decimal(int(best_cand["Odds"]))
 
     if not selected_rows:
@@ -1443,7 +1441,7 @@ def optimize_parlay_legs(edges_df: pd.DataFrame, target_american_odds: int, lock
 
     return res_df, final_american, round(comb_prob, 2), status_msg
 
-def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, book: str = "draftkings", from_game: str = ""):
+def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_msg: str, league: str = "NBA", book: str = "draftkings", from_game: str = ""):
     if source_df.empty:
         st.markdown(
             f'<div class="board-card"><div class="board-header"><span class="board-title">{section_title}</span>'
@@ -1457,7 +1455,7 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
     for _, r in source_df.iterrows():
         p_cell = player_badge_html(
             r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""),
-            book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
+            league=league, book=book, from_game=from_game, inj_status=r.get("InjStatus", "")
         )
         rows_html.append(
             f'<tr>'
@@ -1489,14 +1487,14 @@ def render_clean_prop_board(source_df: pd.DataFrame, section_title: str, empty_m
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
-def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section_title: str):
+def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section_title: str, league: str):
     sub = source_df.sort_values(by=stat_col, ascending=False).head(5)
     if sub.empty:
         return
     rows_html = []
     for _, r in sub.iterrows():
         p_cell = player_badge_html(
-            r["PLAYER_NAME"], r["HEADSHOT_HREF"], r["TEAM_LOGO"], r.get("RAW_POS", "F")
+            r["PLAYER_NAME"], r["HEADSHOT_HREF"], r["TEAM_LOGO"], r.get("RAW_POS", ""), league=league
         )
         val = r[stat_col]
         rows_html.append(
@@ -1520,22 +1518,23 @@ def render_top_projections_board(source_df: pd.DataFrame, stat_col: str, section
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
-def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame, injury_map: dict, book: str = "draftkings", from_game: str = ""):
-    t_logo = get_team_logo(team_name)
+def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame, injury_map: dict, league: str, book: str = "draftkings", from_game: str = ""):
+    t_logo = get_team_logo(team_name, league)
+    headers = ["MIN", "PTS", "REB", "AST", "3PM", "PRA"] if league == "NBA" else ["OPP/TGT", "PASS", "RUSH", "REC YD", "REC", "RUSH+REC"]
     rows_html = []
     for _, r in box_df.iterrows():
         norm_p = normalize_name(r["Player"])
         inj_st = injury_map.get(norm_p, {}).get("status", "")
-        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), book=book, from_game=from_game, inj_status=inj_st)
+        p_cell = player_badge_html(r["Player"], r["Headshot"], r["TeamLogo"], r.get("Pos", ""), league=league, book=book, from_game=from_game, inj_status=inj_st)
         rows_html.append(
             f'<tr>'
             f'<td style="width:38%;">{p_cell}</td>'
-            f'<td style="width:10%;" class="col-right">{r["MIN"]:.1f}</td>'
-            f'<td style="width:10%;" class="proj-cell col-right">{r["PTS"]:.1f}</td>'
-            f'<td style="width:10%;" class="col-right">{r["REB"]:.1f}</td>'
-            f'<td style="width:10%;" class="col-right">{r["AST"]:.1f}</td>'
-            f'<td style="width:10%;" class="col-right">{r["3PM"]:.1f}</td>'
-            f'<td style="width:12%;" class="line-cell col-right">{r["PRA"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["USG"]:.1f}</td>'
+            f'<td style="width:10%;" class="proj-cell col-right">{r["S1"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["S2"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["S3"]:.1f}</td>'
+            f'<td style="width:10%;" class="col-right">{r["S4"]:.1f}</td>'
+            f'<td style="width:12%;" class="line-cell col-right">{r["COMBO"]:.1f}</td>'
             f'</tr>'
         )
 
@@ -1544,25 +1543,33 @@ def render_box_score_table(team_name: str, win_prob: float, box_df: pd.DataFrame
         f'<div class="board-header"><span class="board-title"><img class="team-inline-logo" src="{t_logo}" />{team_name}</span><span class="board-count">Win Prob: {win_prob:.1f}%</span></div>'
         f'<div class="table-scroll-wrap"><table class="prop-table">'
         f'<thead><tr>'
-        f'<th style="width:38%;">Active Rotation (Click Player)</th>'
-        f'<th style="width:10%;" class="col-right">MIN</th>'
-        f'<th style="width:10%;" class="col-right">PTS</th>'
-        f'<th style="width:10%;" class="col-right">REB</th>'
-        f'<th style="width:10%;" class="col-right">AST</th>'
-        f'<th style="width:10%;" class="col-right">3PM</th>'
-        f'<th style="width:12%;" class="col-right">PRA</th>'
+        f'<th style="width:38%;">Active Roster (Click Player)</th>'
+        f'<th style="width:10%;" class="col-right">{headers[0]}</th>'
+        f'<th style="width:10%;" class="col-right">{headers[1]}</th>'
+        f'<th style="width:10%;" class="col-right">{headers[2]}</th>'
+        f'<th style="width:10%;" class="col-right">{headers[3]}</th>'
+        f'<th style="width:10%;" class="col-right">{headers[4]}</th>'
+        f'<th style="width:12%;" class="col-right">{headers[5]}</th>'
         f'</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         f'</table></div></div>'
     )
     st.markdown(html, unsafe_allow_html=True)
 
+# ==========================================
+# ROUTING & STATE INITIALIZATION
+# ==========================================
+qp_league = st.query_params.get("league", "NBA").upper()
+if qp_league not in ("NBA", "NFL"):
+    qp_league = "NBA"
 qp_player = st.query_params.get("player", "")
 qp_game = st.query_params.get("game", "")
 qp_book = st.query_params.get("book", "draftkings")
 if qp_book not in ["draftkings", "fanduel", "betmgm", "caesars"]:
     qp_book = "draftkings"
 
+if "selected_league" not in st.session_state:
+    st.session_state["selected_league"] = qp_league
 if "selected_book" not in st.session_state:
     st.session_state["selected_book"] = qp_book
 if qp_player:
@@ -1570,24 +1577,26 @@ if qp_player:
 if qp_game:
     st.session_state["active_game_page"] = qp_game
 
-df = load_nba_data()
-injury_map, team_out_lists = fetch_nba_injury_report()
-out_players_tuple = tuple(sorted([k for k, v in injury_map.items() if v.get("is_out")]))
-media_lookup = build_player_media_lookup(df)
-team_metrics = compute_advanced_team_metrics(df)
+active_league = st.session_state["selected_league"]
 
 st.markdown(
     f'<div class="brand-bar"><div class="brand-left"><div class="brand-logo">HP</div>'
     f'<div><p class="brand-name">{BRAND_NAME}</p><p class="brand-sub">{BRAND_SUBTITLE}</p></div></div>'
-    f'<span class="status-badge"><span class="status-dot"></span> PROPLINE + DvP ENGINE</span></div>',
+    f'<span class="status-badge"><span class="status-dot"></span> {active_league} PROPLINE + DvP ENGINE</span></div>',
     unsafe_allow_html=True
 )
 
+df = load_sports_data(active_league)
+injury_map, team_out_lists = fetch_injury_report(active_league)
+out_players_tuple = tuple(sorted([k for k, v in injury_map.items() if v.get("is_out")]))
+media_lookup = build_player_media_lookup(df, active_league)
+team_metrics = compute_advanced_team_metrics(df, active_league)
+
 all_game_labels, game_lines, slate_props, fetched_at, slate_date_label = fetch_and_lock_propline_slate(
-    bookmaker=st.session_state["selected_book"], max_games=12
+    league=active_league, bookmaker=st.session_state["selected_book"], max_games=16
 )
 
-edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup, injury_map) if slate_props else pd.DataFrame()
+edges_df = evaluate_straight_edges(df, slate_props, game_lines, team_metrics, media_lookup, injury_map, active_league) if slate_props else pd.DataFrame()
 main_edges_df = edges_df[~edges_df["IsAlt"]].copy() if not edges_df.empty else pd.DataFrame()
 
 team_today_opp = {}
@@ -1604,7 +1613,7 @@ scout_player = st.session_state.get("active_player_profile")
 if scout_player:
     nav_p1, _ = st.columns([1.6, 4.4])
     with nav_p1:
-        back_lbl = "← Back to Matchup Box Score" if st.session_state.get("active_game_page") else "← Back to Full Slate"
+        back_lbl = "← Back to Matchup Box Score" if st.session_state.get("active_game_page") else f"← Back to {active_league} Slate"
         if st.button(back_lbl, icon=":material/arrow_back:", width="stretch"):
             st.session_state["active_player_profile"] = None
             if "player" in st.query_params:
@@ -1614,18 +1623,17 @@ if scout_player:
     norm_scout = normalize_name(scout_player)
     p_hist = df[df["NORM_NAME"] == norm_scout].copy()
     if p_hist.empty:
-        st.warning(f"No historical game logs found for {scout_player}.")
+        st.warning(f"No historical game logs found for {scout_player} in {active_league}.")
         st.stop()
 
     p_display = p_hist["PLAYER_NAME"].iloc[-1]
     p_team = p_hist["TEAM_NAME"].iloc[-1]
     p_media = media_lookup.get(norm_scout, {})
     h_url = p_media.get("headshot", DEFAULT_HEADSHOT)
-    t_logo = get_team_logo(p_team)
-    ath_id = p_media.get("athlete_id", 0)
+    t_logo = get_team_logo(p_team, active_league)
     pos_group = p_media.get("pos_group", p_hist["POS_GROUP"].iloc[-1])
     raw_pos = p_media.get("raw_pos", pos_group)
-    pos_plural = POS_FULL_PLURAL.get(pos_group, "Players")
+    pos_plural = SPORT_CONFIG[active_league]["pos_plural"].get(pos_group, "Players")
     p_inj = injury_map.get(norm_scout, {})
 
     if p_team in team_today_opp:
@@ -1633,9 +1641,8 @@ if scout_player:
     else:
         opp_team = str(p_hist["OPP_NAME"].iloc[-1])
         loc_label = "Matchup"
-        matchup_lbl = f"{p_team} vs {opp_team}"
 
-    opp_logo = get_team_logo(opp_team)
+    opp_logo = get_team_logo(opp_team, active_league)
     p_lines_df = main_edges_df[main_edges_df["NORM_NAME"] == norm_scout] if not main_edges_df.empty else pd.DataFrame()
 
     inj_banner_tag = ""
@@ -1643,18 +1650,25 @@ if scout_player:
         cls_inj = "inj-out-pill" if p_inj.get("is_out") else "inj-q-pill"
         inj_banner_tag = f' &nbsp;<span class="{cls_inj}">INJURY REPORT: {p_inj["status"].upper()}</span>'
 
+    if active_league == "NBA":
+        avg_line_1 = f"{p_hist.tail(40)['PTS'].mean():.1f} PTS · {p_hist.tail(40)['REB'].mean():.1f} REB · {p_hist.tail(40)['AST'].mean():.1f} AST"
+        avg_line_2 = f"{p_hist.tail(10)['PTS'].mean():.1f} PTS · {p_hist.tail(10)['REB'].mean():.1f} REB · {p_hist.tail(10)['AST'].mean():.1f} AST"
+    else:
+        avg_line_1 = f"{p_hist.tail(17)['PASS_YDS'].mean():.1f} PASS · {p_hist.tail(17)['RUSH_YDS'].mean():.1f} RUSH · {p_hist.tail(17)['REC_YDS'].mean():.1f} REC YD"
+        avg_line_2 = f"{p_hist.tail(5)['PASS_YDS'].mean():.1f} PASS · {p_hist.tail(5)['RUSH_YDS'].mean():.1f} RUSH · {p_hist.tail(5)['REC_YDS'].mean():.1f} REC YD"
+
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div style="display:flex; align-items:center; gap:14px;">'
         f'<img src="{h_url}" onerror="this.src=\'{DEFAULT_HEADSHOT}\'" style="width:68px; height:68px; border-radius:50%; object-fit:cover; background:#1E2638; border:2px solid #10B981;" />'
-        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Player Prop Scouting · Position: {raw_pos} ({pos_plural}){inj_banner_tag}</div>'
+        f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">{active_league} Scouting · Position: {raw_pos} ({pos_plural}){inj_banner_tag}</div>'
         f'<div style="font-size:1.65rem; font-weight:800; color:#F8FAFC; line-height:1.2;">{p_display}</div>'
         f'<div style="font-size:0.86rem; color:#94A3B8; margin-top:3px; display:flex; align-items:center; gap:6px;">'
         f'<img src="{t_logo}" style="width:18px; height:18px;" /> <b>{p_team}</b> &nbsp;·&nbsp; {loc_label} vs '
         f'<img src="{opp_logo}" style="width:18px; height:18px;" /> <b>{opp_team}</b></div></div></div>'
         f'<div style="text-align:right; font-size:0.84rem; color:#CBD5E1;">'
-        f'<div>Season Avg: <b>{p_hist.tail(40)["PTS"].mean():.1f} PTS · {p_hist.tail(40)["REB"].mean():.1f} REB · {p_hist.tail(40)["AST"].mean():.1f} AST</b></div>'
-        f'<div style="margin-top:3px;">Last 10 Avg: <b>{p_hist.tail(10)["PTS"].mean():.1f} PTS · {p_hist.tail(10)["REB"].mean():.1f} REB · {p_hist.tail(10)["AST"].mean():.1f} AST</b></div>'
+        f'<div>Season Avg: <b>{avg_line_1}</b></div>'
+        f'<div style="margin-top:3px;">Recent Form: <b>{avg_line_2}</b></div>'
         f'</div></div></div>',
         unsafe_allow_html=True
     )
@@ -1662,15 +1676,17 @@ if scout_player:
     if not p_lines_df.empty:
         render_clean_prop_board(
             p_lines_df.drop_duplicates(subset=["Stat"]),
-            f"{p_display} — Today's Locked Pre-Game Lines & Position-Adjusted Edges",
+            f"{p_display} — Locked Pre-Game Lines & Position-Adjusted Edges",
             "",
+            league=active_league,
             book=st.session_state["selected_book"]
         )
 
+    avail_stats = SPORT_CONFIG[active_league]["stats"]
     sc_c1, sc_c2 = st.columns([1.2, 2.8], vertical_alignment="bottom")
     with sc_c1:
-        stat_choice = st.selectbox("Inspect Stat Trend", ["PTS", "REB", "AST", "FG3M", "PRA"])
-    default_line = round(float(p_hist.tail(15)[stat_choice].median()) - 0.5, 1)
+        stat_choice = st.selectbox("Inspect Stat Trend", avail_stats)
+    default_line = round(float(p_hist.tail(12)[stat_choice].median()) - 0.5, 1)
     if not p_lines_df.empty and stat_choice in set(p_lines_df["Stat"]):
         default_line = float(p_lines_df[p_lines_df["Stat"] == stat_choice]["RawLine"].iloc[0])
     with sc_c2:
@@ -1680,165 +1696,46 @@ if scout_player:
     hr5 = (s_series.tail(5) > custom_line).mean() * 100
     hr10 = (s_series.tail(10) > custom_line).mean() * 100
     hr20 = (s_series.tail(20) > custom_line).mean() * 100
-    hr_all = (s_series.tail(60) > custom_line).mean() * 100
+    hr_all = (s_series.tail(40) > custom_line).mean() * 100
 
     hk1, hk2, hk3, hk4 = st.columns(4)
     hk1.metric(f"Last 5 Over {custom_line}", f"{hr5:.0f}%", f"{int((s_series.tail(5) > custom_line).sum())}/5 Games")
     hk2.metric(f"Last 10 Over {custom_line}", f"{hr10:.0f}%", f"{int((s_series.tail(10) > custom_line).sum())}/10 Games")
     hk3.metric(f"Last 20 Over {custom_line}", f"{hr20:.0f}%", f"{int((s_series.tail(20) > custom_line).sum())}/20 Games")
-    hk4.metric(f"Sample Over {custom_line}", f"{hr_all:.0f}%", f"{int((s_series.tail(60) > custom_line).sum())}/{len(s_series.tail(60))} Games")
+    hk4.metric(f"Sample Over {custom_line}", f"{hr_all:.0f}%", f"{int((s_series.tail(40) > custom_line).sum())}/{len(s_series.tail(40))} Games")
 
-    st.plotly_chart(build_hit_rate_chart(p_hist, stat_choice, custom_line, p_display), use_container_width=True)
+    st.plotly_chart(build_hit_rate_chart(p_hist, stat_choice, custom_line, p_display, active_league), use_container_width=True)
 
-    chart_col, heat_col = st.columns([1.1, 1.05], gap="large")
+    st.markdown(f"##### {opp_team} Defense vs. {pos_plural} (DvP Heat Map)")
+    st.caption(f"Rank 1 = Toughest vs {pos_plural} · Rank {30 if active_league == 'NBA' else 32} = Allows Most to {pos_plural}")
+    opp_pos_rks = team_metrics["dvp_ranks"].get(opp_team, {}).get(pos_group, {})
+    opp_pos_avgs = team_metrics["dvp_avg"].get(opp_team, {}).get(pos_group, {})
+    opp_pos_mults = team_metrics["dvp_mult"].get(opp_team, {}).get(pos_group, {})
 
-    with chart_col:
-        recent_gids = tuple(p_hist["GAME_ID"].drop_duplicates().tail(8).tolist())
-        shots_df = fetch_player_shot_chart(ath_id, recent_gids)
-        st.plotly_chart(build_shot_chart_figure(shots_df, p_display), use_container_width=True)
-        if not shots_df.empty:
-            z_cols = st.columns(3)
-            for zi, z_name in enumerate(["Paint / Rim", "Mid-Range", "3-Point"]):
-                z_sub = shots_df[shots_df["zone"] == z_name]
-                fg_pct = (z_sub["made"].mean() * 100) if not z_sub.empty else 0.0
-                share_pct = (len(z_sub) / len(shots_df)) * 100
-                z_cols[zi].metric(z_name, f"{fg_pct:.0f}% FG", f"{share_pct:.0f}% of Shots ({int(z_sub['made'].sum())}/{len(z_sub)})")
-
-    with heat_col:
-        st.markdown(f"##### {opp_team} Defense vs. {pos_plural} (DvP Heat Map)")
-        st.caption(f"Rank 1 = Toughest vs {pos_plural} · Rank 30 = Allows Most to {pos_plural}")
-        opp_pos_rks = team_metrics["dvp_ranks"].get(opp_team, {}).get(pos_group, {})
-        opp_pos_avgs = team_metrics["dvp_avg"].get(opp_team, {}).get(pos_group, {})
-        opp_pos_mults = team_metrics["dvp_mult"].get(opp_team, {}).get(pos_group, {})
-
-        heat_items = [
-            ("PTS", f"PTS Allowed to {pos_plural}"),
-            ("REB", f"REB Allowed to {pos_plural}"),
-            ("AST", f"AST Allowed to {pos_plural}"),
-            ("FG3M", f"3PM Allowed to {pos_plural}"),
-            ("PRA", f"PRA Allowed to {pos_plural}"),
-        ]
-        tiles_html = []
-        for s_code, s_lbl in heat_items:
-            rk = opp_pos_rks.get(s_code, 15)
-            avg_v = opp_pos_avgs.get(s_code, 0.0)
-            mult_v = opp_pos_mults.get(s_code, 1.0)
-            diff_pct = (mult_v - 1.0) * 100
-            if rk >= 21:
-                t_cls = "heat-smash"
-                tag = "Smash"
-            elif rk <= 10:
-                t_cls = "heat-tough"
-                tag = "Tough"
-            else:
-                t_cls = "heat-neutral"
-                tag = "Neutral"
-            tiles_html.append(
-                f'<div class="heat-tile {t_cls}">'
-                f'<div class="heat-label">{s_lbl}</div>'
-                f'<div class="heat-rank">{ordinal(rk)} <span style="font-size:0.75rem; font-weight:600;">({tag})</span></div>'
-                f'<div class="heat-sub">{avg_v:.1f}/gm ({diff_pct:+.1f}% vs Lg)</div>'
-                f'</div>'
-            )
-
-        if "HOME_AWAY" in p_hist.columns and p_hist["HOME_AWAY"].astype(str).str.lower().isin(["home", "away"]).any():
-            target_ha = "home" if loc_label == "Home" else "away"
-            ha_sub = p_hist[p_hist["HOME_AWAY"].astype(str).str.lower() == target_ha].tail(25)
-            ha_val = ha_sub[stat_choice].mean() if not ha_sub.empty else s_series.tail(25).mean()
-            tiles_html.append(
-                f'<div class="heat-tile heat-neutral">'
-                f'<div class="heat-label">{loc_label} Split ({stat_choice})</div>'
-                f'<div class="heat-rank">{ha_val:.1f} Avg</div>'
-                f'<div class="heat-sub">Last {len(ha_sub)} {loc_label} Games</div>'
-                f'</div>'
-            )
-
-        st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
-
-        st.markdown(f"<div style='margin-top:1rem; font-weight:700; color:#F8FAFC; font-size:0.9rem;'>Recent Primary {pos_plural} vs {opp_team}</div>", unsafe_allow_html=True)
-        opp_pos_pool = df[
-            (df["OPP_NAME"] == opp_team) &
-            (df["POS_GROUP"] == pos_group) &
-            (df["MIN"] >= 30)
-        ].copy()
-        if not opp_pos_pool.empty:
-            opp_pos_pool = (
-                opp_pos_pool.sort_values(by=["GAME_DATE", "MIN"], ascending=[False, False])
-                .drop_duplicates(subset=["GAME_ID"], keep="first")
-                .head(2)
-            )
-
-        if opp_pos_pool.empty:
-            st.caption(f"No recent primary {pos_plural.lower()} logs found against {opp_team}.")
+    tiles_html = []
+    for s_code in avail_stats:
+        s_lbl = f"{SPORT_CONFIG[active_league]['stat_labels'][s_code]} Allowed"
+        rk = opp_pos_rks.get(s_code, 16)
+        avg_v = opp_pos_avgs.get(s_code, 0.0)
+        mult_v = opp_pos_mults.get(s_code, 1.0)
+        diff_pct = (mult_v - 1.0) * 100
+        if rk >= 21:
+            t_cls, tag = "heat-smash", "Smash"
+        elif rk <= 10:
+            t_cls, tag = "heat-tough", "Tough"
         else:
-            dvp_rows = []
-            for _, dr in opp_pos_pool.iterrows():
-                d_s = dr["GAME_DATE"].strftime("%b %d") if pd.notna(dr["GAME_DATE"]) else "-"
-                d_norm = dr["NORM_NAME"]
-                d_med = media_lookup.get(d_norm, {})
-                d_badge = player_badge_html(
-                    dr["PLAYER_NAME"],
-                    d_med.get("headshot", DEFAULT_HEADSHOT),
-                    get_team_logo(str(dr.get("TEAM_NAME", ""))),
-                    dr.get("RAW_POS", pos_group),
-                    book=st.session_state["selected_book"]
-                )
-                dvp_rows.append(
-                    f'<tr>'
-                    f'<td style="width:36%;">{d_badge}</td>'
-                    f'<td style="width:12%;">{d_s}</td>'
-                    f'<td style="width:10%;" class="col-right">{dr["MIN"]:.0f}m</td>'
-                    f'<td style="width:10%;" class="proj-cell col-right">{dr["PTS"]:.0f}</td>'
-                    f'<td style="width:10%;" class="col-right">{dr["REB"]:.0f}</td>'
-                    f'<td style="width:10%;" class="col-right">{dr["AST"]:.0f}</td>'
-                    f'<td style="width:12%;" class="line-cell col-right">{dr["PRA"]:.0f}</td>'
-                    f'</tr>'
-                )
-            st.markdown(
-                f'<div class="board-card" style="margin-top:0.4rem;"><div class="table-scroll-wrap"><table class="prop-table">'
-                f'<thead><tr><th style="width:36%;">Player</th><th style="width:12%;">Date</th>'
-                f'<th style="width:10%;" class="col-right">MIN</th><th style="width:10%;" class="col-right">PTS</th>'
-                f'<th style="width:10%;" class="col-right">REB</th><th style="width:10%;" class="col-right">AST</th>'
-                f'<th style="width:12%;" class="col-right">PRA</th></tr></thead>'
-                f'<tbody>{"".join(dvp_rows)}</tbody></table></div></div>',
-                unsafe_allow_html=True
-            )
-
-    st.markdown(f"##### {p_display} — Recent Game Log (Last 15 Games)")
-    gl_rows = []
-    for _, gr in p_hist.tail(15).iloc[::-1].iterrows():
-        g_dt = gr["GAME_DATE"].strftime("%b %d") if pd.notna(gr["GAME_DATE"]) else "-"
-        opp_n = str(gr.get("OPP_NAME", ""))
-        opp_lg = get_team_logo(opp_n)
-        ha_tag = "vs" if str(gr.get("HOME_AWAY", "")).lower() == "home" else "@"
-        fg_str = f"{int(gr['FGM'])}-{int(gr['FGA'])}" if pd.notna(gr.get("FGM")) and pd.notna(gr.get("FGA")) else "-"
-        gl_rows.append(
-            f'<tr>'
-            f'<td style="width:11%;">{g_dt}</td>'
-            f'<td style="width:23%;"><img class="team-inline-logo" src="{opp_lg}" />{ha_tag} {opp_n}</td>'
-            f'<td style="width:9%;" class="col-right">{gr["MIN"]:.0f}</td>'
-            f'<td style="width:9%;" class="proj-cell col-right">{gr["PTS"]:.0f}</td>'
-            f'<td style="width:9%;" class="col-right">{gr["REB"]:.0f}</td>'
-            f'<td style="width:9%;" class="col-right">{gr["AST"]:.0f}</td>'
-            f'<td style="width:9%;" class="col-right">{gr["FG3M"]:.0f}</td>'
-            f'<td style="width:11%;" class="line-cell col-right">{gr["PRA"]:.0f}</td>'
-            f'<td style="width:10%;" class="col-right">{fg_str}</td>'
-            f'</tr>'
+            t_cls, tag = "heat-neutral", "Neutral"
+        tiles_html.append(
+            f'<div class="heat-tile {t_cls}">'
+            f'<div class="heat-label">{s_lbl}</div>'
+            f'<div class="heat-rank">{ordinal(rk)} <span style="font-size:0.75rem; font-weight:600;">({tag})</span></div>'
+            f'<div class="heat-sub">{avg_v:.1f}/gm ({diff_pct:+.1f}% vs Lg)</div>'
+            f'</div>'
         )
-    st.markdown(
-        f'<div class="board-card"><div class="table-scroll-wrap"><table class="prop-table">'
-        f'<thead><tr>'
-        f'<th style="width:11%;">Date</th><th style="width:23%;">Opponent</th>'
-        f'<th style="width:9%;" class="col-right">MIN</th><th style="width:9%;" class="col-right">PTS</th>'
-        f'<th style="width:9%;" class="col-right">REB</th><th style="width:9%;" class="col-right">AST</th>'
-        f'<th style="width:9%;" class="col-right">3PM</th><th style="width:11%;" class="col-right">PRA</th>'
-        f'<th style="width:10%;" class="col-right">FG</th>'
-        f'</tr></thead><tbody>{"".join(gl_rows)}</tbody></table></div></div>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="heatmap-grid">{"".join(tiles_html)}</div>', unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
+        f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA & NFL Analytics Engine</span>'
         f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
         unsafe_allow_html=True
     )
@@ -1851,7 +1748,7 @@ target_game = st.session_state.get("active_game_page")
 if target_game and "@" in target_game:
     nav_c1, _ = st.columns([1.4, 4.6])
     with nav_c1:
-        if st.button("← Back to Full Slate", icon=":material/arrow_back:", width="stretch"):
+        if st.button(f"← Back to {active_league} Slate", icon=":material/arrow_back:", width="stretch"):
             st.session_state["active_game_page"] = None
             if "game" in st.query_params:
                 del st.query_params["game"]
@@ -1859,19 +1756,19 @@ if target_game and "@" in target_game:
 
     parts = [t.strip() for t in target_game.split("@")]
     away_sel, home_sel = parts[0], parts[1]
-    g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
-    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, out_players_key=out_players_tuple, n_sims=15000)
+    g_line = game_lines.get(target_game, {"spread_home": 0.0, "total": SPORT_CONFIG[active_league]["default_total"], "tip_str": ""})
+    detail_sim = simulate_full_game(df, away_sel, home_sel, team_metrics, g_line, media_lookup, active_league, out_players_key=out_players_tuple, n_sims=15000)
 
     fav_short = home_sel.split()[-1] if detail_sim["proj_spread"] < 0 else away_sel.split()[-1]
     spread_num = abs(detail_sim["proj_spread"])
     book_spread_str = f"{home_sel.split()[-1]} {g_line['spread_home']:+.1f}" if g_line["spread_home"] != 0 else "N/A"
-    away_logo = get_team_logo(away_sel)
-    home_logo = get_team_logo(home_sel)
+    away_logo = get_team_logo(away_sel, active_league)
+    home_logo = get_team_logo(home_sel, active_league)
 
     st.markdown(
         f'<div class="game-hero"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">'
         f'<div><div style="font-size:0.78rem; color:#10B981; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">'
-        f'Projected Matchup & Player Box Scores · {g_line.get("tip_str", slate_date_label)}</div>'
+        f'{active_league} Projected Matchup & Box Scores · {g_line.get("tip_str", slate_date_label)}</div>'
         f'<div style="font-size:1.55rem; font-weight:800; color:#F8FAFC; margin-top:0.35rem; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">'
         f'<img src="{away_logo}" style="width:28px; height:28px; object-fit:contain;" /><span>{away_sel}</span>'
         f'<span style="color:#10B981;">{detail_sim["away_score"]}</span><span style="color:#64748B; font-size:1.1rem;">@</span>'
@@ -1894,12 +1791,12 @@ if target_game and "@" in target_game:
             out_parts.append(f"<b>{home_sel} OUT:</b> {', '.join(home_outs)}")
         st.markdown(f'<div class="inj-strip">🚫 <b>Injury Report (Excluded from Projections):</b> &nbsp;{" &nbsp;|&nbsp; ".join(out_parts)}</div>', unsafe_allow_html=True)
 
-    st.markdown("##### Projected Active Player Box Scores (Click Player to Scout)")
+    st.markdown("##### Projected Active Player Projections (Click Player to Scout)")
     b1, b2 = st.columns(2, gap="medium")
     with b1:
-        render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"], injury_map, book=st.session_state["selected_book"], from_game=target_game)
+        render_box_score_table(f"{away_sel} (Away)", detail_sim["away_win_prob"], detail_sim["away_box"], injury_map, active_league, book=st.session_state["selected_book"], from_game=target_game)
     with b2:
-        render_box_score_table(f"{home_sel} (Home)", detail_sim["home_win_prob"], detail_sim["home_box"], injury_map, book=st.session_state["selected_book"], from_game=target_game)
+        render_box_score_table(f"{home_sel} (Home)", detail_sim["home_win_prob"], detail_sim["home_box"], injury_map, active_league, book=st.session_state["selected_book"], from_game=target_game)
 
     st.markdown(f"##### Locked Pre-Game Player Lines & DvP Matchup Ratings — {away_sel} @ {home_sel}")
     game_props_df = main_edges_df[main_edges_df["FullMatchup"] == target_game] if not main_edges_df.empty else pd.DataFrame()
@@ -1908,22 +1805,36 @@ if target_game and "@" in target_game:
     render_clean_prop_board(
         game_props_df,
         f"{away_sel} @ {home_sel} — Pre-Game Lines, Projections & DvP Ratings",
-        "No pre-game player props were posted for this matchup.",
+        "No pre-game player props were posted for this matchup yet.",
+        league=active_league,
         book=st.session_state["selected_book"],
         from_game=target_game
     )
 
     st.markdown(
-        f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
+        f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA & NFL Analytics Engine</span>'
         f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
         unsafe_allow_html=True
     )
     st.stop()
 
 # =========================================================
-# MAIN DASHBOARD VIEW
+# MAIN DASHBOARD VIEW (LEAGUE SWITCHER + CONTROLS)
 # =========================================================
-ctrl_c1, ctrl_c2, ctrl_c3 = st.columns([1.2, 2.6, 0.8], vertical_alignment="bottom")
+ctrl_c0, ctrl_c1, ctrl_c2, ctrl_c3 = st.columns([0.9, 1.1, 2.3, 0.7], vertical_alignment="bottom")
+with ctrl_c0:
+    league_choice = st.selectbox(
+        "League",
+        ["NBA", "NFL"],
+        index=["NBA", "NFL"].index(active_league),
+        format_func=lambda x: "🏀 NBA" if x == "NBA" else "🏈 NFL"
+    )
+    if league_choice != active_league:
+        st.session_state["selected_league"] = league_choice
+        st.session_state["parlay_swapped_norms"] = []
+        st.query_params["league"] = league_choice
+        st.rerun()
+
 with ctrl_c1:
     bookmaker = st.selectbox(
         "Sportsbook",
@@ -1936,11 +1847,11 @@ with ctrl_c1:
         st.query_params["book"] = bookmaker
         st.rerun()
 with ctrl_c2:
-    search_player = st.text_input("Search", placeholder="Filter by player or team...")
+    search_player = st.text_input("Search", placeholder=f"Filter {active_league} players or teams...")
 with ctrl_c3:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
         fetch_and_lock_propline_slate.clear()
-        fetch_nba_injury_report.clear()
+        fetch_injury_report.clear()
         st.rerun()
 
 slate_teams = set()
@@ -1950,31 +1861,29 @@ for g_lbl in all_game_labels:
 slate_outs_count = sum(len(v) for k, v in team_out_lists.items() if k in slate_teams)
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric(f"Today's Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
+kpi1.metric(f"{active_league} Slate ({slate_date_label})", f"{len(all_game_labels)} Games")
 kpi2.metric("Active Main Lines", f"{len(main_edges_df)} Lines")
 kpi3.metric("Ruled Out (Filtered)", f"{slate_outs_count} Players")
 kpi4.metric("Last Slate Sync", fetched_at)
 
 st.write("")
 
-tab_straight, tab_slate, tab_parlays, tab_custom = st.tabs([
+tab_straight, tab_slate, tab_parlays = st.tabs([
     ":material/local_fire_department: Top Straight Bets",
     ":material/scoreboard: Slate & Matchup Projections",
-    ":material/bolt: Auto-Parlay Builder",
-    ":material/tune: Custom SGP Lab"
+    ":material/bolt: Target-Odds Parlay Optimizer"
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (CLEAN MAIN LINES ONLY)
+# TAB 1: TOP STRAIGHT BETS (NBA & NFL)
 # =========================================================
 with tab_straight:
     if not slate_props:
-        st.info("Top straight bets lock in automatically as soon as pre-game player props open for the slate.")
+        st.info(f"{active_league} straight bets lock in automatically as soon as pre-game player props open for the slate.")
     elif main_edges_df.empty:
-        st.warning("No pre-game props available for evaluation yet.")
+        st.warning(f"No {active_league} pre-game props available for evaluation yet.")
     else:
         bk = st.session_state["selected_book"]
-        
         sub_proj, sub_overs, sub_unders = st.tabs([
             "🔥 Top Projections (High Ceiling)", 
             "📈 Top Overs", 
@@ -1982,7 +1891,7 @@ with tab_straight:
         ])
         
         with sub_proj:
-            st.caption("Highest statistical projections for today's active slate players (independent of sportsbook lines).")
+            st.caption(f"Highest statistical projections for active {active_league} slate players.")
             active_slate_norms = set()
             for g_lbl, g_props in slate_props.items():
                 for np_k in g_props.keys():
@@ -1991,127 +1900,124 @@ with tab_straight:
             
             slate_p_rows = []
             grouped_df = {k: v for k, v in df.groupby("NORM_NAME")}
+            stat_keys = SPORT_CONFIG[active_league]["stats"][:4]
             for np_k in active_slate_norms:
                 if np_k not in grouped_df:
                     continue
-                p_df = grouped_df[np_k].tail(30)
-                if len(p_df) < 5:
+                p_df = grouped_df[np_k].tail(16 if active_league == "NFL" else 30)
+                if len(p_df) < 3:
                     continue
                 p_med = media_lookup.get(np_k, {})
-                slate_p_rows.append({
+                row_dict = {
                     "PLAYER_NAME": p_df["PLAYER_NAME"].iloc[-1],
                     "TEAM_NAME": p_df["TEAM_NAME"].iloc[-1],
                     "HEADSHOT_HREF": p_med.get("headshot", DEFAULT_HEADSHOT),
-                    "TEAM_LOGO": p_med.get("team_logo", get_team_logo(p_df["TEAM_NAME"].iloc[-1])),
-                    "RAW_POS": p_med.get("raw_pos", "F"),
-                    "PTS": float(p_df["PTS"].mean()),
-                    "REB": float(p_df["REB"].mean()),
-                    "AST": float(p_df["AST"].mean()),
-                    "PRA": float(p_df["PRA"].mean()),
-                })
+                    "TEAM_LOGO": p_med.get("team_logo", get_team_logo(p_df["TEAM_NAME"].iloc[-1], active_league)),
+                    "RAW_POS": p_med.get("raw_pos", ""),
+                }
+                for sk in stat_keys:
+                    row_dict[sk] = float(p_df[sk].mean())
+                slate_p_rows.append(row_dict)
             
             if slate_p_rows:
                 sp_df = pd.DataFrame(slate_p_rows)
                 pc1, pc2 = st.columns(2, gap="medium")
+                labels_map = SPORT_CONFIG[active_league]["stat_labels"]
                 with pc1:
-                    render_top_projections_board(sp_df, "PTS", "Top Projected Points (PTS)")
-                    render_top_projections_board(sp_df, "AST", "Top Projected Assists (AST)")
+                    render_top_projections_board(sp_df, stat_keys[0], f"Top Projected {labels_map[stat_keys[0]]}", active_league)
+                    render_top_projections_board(sp_df, stat_keys[2], f"Top Projected {labels_map[stat_keys[2]]}", active_league)
                 with pc2:
-                    render_top_projections_board(sp_df, "REB", "Top Projected Rebounds (REB)")
-                    render_top_projections_board(sp_df, "PRA", "Top Projected PRA")
-            else:
-                st.info("Calculating player projections...")
+                    render_top_projections_board(sp_df, stat_keys[1], f"Top Projected {labels_map[stat_keys[1]]}", active_league)
+                    render_top_projections_board(sp_df, stat_keys[3], f"Top Projected {labels_map[stat_keys[3]]}", active_league)
 
         with sub_overs:
             st.caption("Highest confidence standard Over bets backed by favorable matchup environments.")
             overs_df = main_edges_df[main_edges_df["Side"] == "Over"].sort_values(by="BlendedScore", ascending=False)
-            render_clean_prop_board(overs_df.head(15), "Top Over Plays — Standard Lines", "No qualifying Over plays found.", book=bk)
+            render_clean_prop_board(overs_df.head(15), f"Top {active_league} Over Plays — Standard Lines", "No qualifying Over plays found.", league=active_league, book=bk)
 
         with sub_unders:
             st.caption("Highest confidence standard Under bets backed by tough defensive matchups and suppression.")
             unders_df = main_edges_df[main_edges_df["Side"] == "Under"].sort_values(by="BlendedScore", ascending=False)
-            render_clean_prop_board(unders_df.head(15), "Top Under Plays — Standard Lines", "No qualifying Under plays found.", book=bk)
+            render_clean_prop_board(unders_df.head(15), f"Top {active_league} Under Plays — Standard Lines", "No qualifying Under plays found.", league=active_league, book=bk)
 
 # =========================================================
 # TAB 2: SLATE & MATCHUP PROJECTIONS
 # =========================================================
 with tab_slate:
-    st.markdown(f"##### {slate_date_label} Projected NBA Scores & Matchups")
-    st.caption("Injury-adjusted Monte Carlo simulations. Click any game card to open box scores, player props, and DvP matchups.")
+    st.markdown(f"##### {active_league} {slate_date_label} Projected Scores & Matchups")
+    st.caption("Injury-adjusted Monte Carlo simulations. Click any game card to open projected box scores and player props.")
 
-    slate_list = all_game_labels if all_game_labels else [
-        "Denver Nuggets @ Phoenix Suns",
-        "Boston Celtics @ New York Knicks",
-        "Dallas Mavericks @ Oklahoma City Thunder"
-    ]
+    if not all_game_labels:
+        st.info(f"No upcoming {active_league} games posted on the schedule right now.")
+    else:
+        grid_cols = st.columns(3)
+        for idx, g_lbl in enumerate(all_game_labels):
+            parts = [t.strip() for t in g_lbl.split("@")]
+            if len(parts) != 2:
+                continue
+            away_t, home_t = parts[0], parts[1]
+            
+            if search_player.strip() and not (search_player.strip().lower() in away_t.lower() or search_player.strip().lower() in home_t.lower()):
+                continue
 
-    grid_cols = st.columns(3)
-    for idx, g_lbl in enumerate(slate_list):
-        parts = [t.strip() for t in g_lbl.split("@")]
-        if len(parts) != 2:
-            continue
-        away_t, home_t = parts[0], parts[1]
-        
-        if search_player.strip() and not (search_player.strip().lower() in away_t.lower() or search_player.strip().lower() in home_t.lower()):
-            continue
+            g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": SPORT_CONFIG[active_league]["default_total"], "tip_str": ""})
+            sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, active_league, out_players_key=out_players_tuple, n_sims=15000)
+            fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
+            spread_num = abs(sim_res["proj_spread"])
+            tip_badge = g_line.get("tip_str", "")
+            away_logo = get_team_logo(away_t, active_league)
+            home_logo = get_team_logo(home_t, active_league)
 
-        g_line = game_lines.get(g_lbl, {"spread_home": 0.0, "total": 228.0, "tip_str": ""})
-        sim_res = simulate_full_game(df, away_t, home_t, team_metrics, g_line, media_lookup, out_players_key=out_players_tuple, n_sims=15000)
-        fav_short = home_t.split()[-1] if sim_res["proj_spread"] < 0 else away_t.split()[-1]
-        spread_num = abs(sim_res["proj_spread"])
-        tip_badge = g_line.get("tip_str", "")
-        away_logo = get_team_logo(away_t)
-        home_logo = get_team_logo(home_t)
-
-        with grid_cols[idx % 3]:
-            st.markdown(
-                f'<div class="matchup-card">'
-                f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{away_logo}" />{away_t} <span class="matchup-prob">({sim_res["away_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["away_score"]}</span></div>'
-                f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{home_logo}" />{home_t} <span class="matchup-prob">({sim_res["home_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["home_score"]}</span></div>'
-                f'<div class="matchup-footer"><span>{tip_badge} · Line: <b>{fav_short} -{spread_num}</b></span><span>Total: <b>{sim_res["proj_total"]}</b></span></div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            if st.button(
-                f"View Box Score & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
-                key=f"open_game_{idx}",
-                icon=":material/arrow_forward:",
-                width="stretch"
-            ):
-                st.session_state["active_game_page"] = g_lbl
-                st.query_params["game"] = g_lbl
-                st.rerun()
+            with grid_cols[idx % 3]:
+                st.markdown(
+                    f'<div class="matchup-card">'
+                    f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{away_logo}" />{away_t} <span class="matchup-prob">({sim_res["away_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["away_score"]}</span></div>'
+                    f'<div class="matchup-team-row"><span class="matchup-team"><img class="team-inline-logo" src="{home_logo}" />{home_t} <span class="matchup-prob">({sim_res["home_win_prob"]}%)</span></span><span class="matchup-pts">{sim_res["home_score"]}</span></div>'
+                    f'<div class="matchup-footer"><span>{tip_badge} · Line: <b>{fav_short} -{spread_num}</b></span><span>Total: <b>{sim_res["proj_total"]}</b></span></div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                if st.button(
+                    f"View Projections & Props · {away_t.split()[-1]} @ {home_t.split()[-1]}",
+                    key=f"open_game_{active_league}_{idx}",
+                    icon=":material/arrow_forward:",
+                    width="stretch"
+                ):
+                    st.session_state["active_game_page"] = g_lbl
+                    st.query_params["game"] = g_lbl
+                    st.rerun()
 
 # =========================================================
-# TAB 3: PARLAY OPTIMIZER (WITH ALTERNATE LINES & EXACT TARGETS)
+# TAB 3: PARLAY OPTIMIZER & SGP FINDER
 # =========================================================
 with tab_parlays:
     if not slate_props or edges_df.empty:
-        st.info("Parlay optimizer unlocks automatically as soon as pre-game player props open for the slate.")
+        st.info(f"{active_league} Parlay Optimizer unlocks as soon as pre-game player props open.")
     else:
         col_multi, col_sgp = st.columns([1.25, 1.0], gap="large")
 
         with col_multi:
-            st.markdown("##### 🎯 Target Odds & Leg-Lock Parlay Builder")
-            st.caption("Specify your target American odds and leg count. Alternate lines are automatically engaged to hit high payouts.")
+            st.markdown(f"##### 🎯 {active_league} Target Odds & Leg-Lock Parlay Builder")
+            st.caption("Specify your target American odds and leg count. Alternate Over milestones engage automatically to hit high payouts.")
 
             opt_c1, opt_c2, opt_c3 = st.columns([1.0, 1.0, 0.9], vertical_alignment="bottom")
             with opt_c1:
-                target_odds = st.number_input("Target Odds (+)", min_value=100, max_value=100000, value=400, step=100, key="parlay_target_odds")
+                target_odds = st.number_input("Target Odds (+)", min_value=100, max_value=100000, value=400, step=100, key=f"parlay_target_odds_{active_league}")
             with opt_c2:
-                exact_legs = st.slider("Parlay Legs", min_value=2, max_value=15, value=4, key="parlay_exact_legs")
+                exact_legs = st.slider("Parlay Legs", min_value=2, max_value=15, value=4, key=f"parlay_exact_legs_{active_league}")
             with opt_c3:
-                allow_alts = st.checkbox("Use Alt Lines", value=True, key="parlay_use_alts")
+                allow_alts = st.checkbox("Use Alt Overs", value=True, key=f"parlay_use_alts_{active_league}")
 
-            lock_pool = (edges_df if allow_alts else main_edges_df).sort_values(by="BlendedScore", ascending=False).copy()
-            lock_pool["PickLabel"] = lock_pool["Player"] + " — " + lock_pool["Line"] + " (" + lock_pool["Odds"].apply(lambda x: f"{x:+d}") + ")"
-            lock_options = lock_pool["PickLabel"].unique().tolist()
+            valid_lock_df = (edges_df if allow_alts else main_edges_df)
+            valid_lock_df = valid_lock_df[~((valid_lock_df["IsAlt"]) & (valid_lock_df["Side"] == "Under"))].sort_values(by="BlendedScore", ascending=False).copy()
+            valid_lock_df["PickLabel"] = valid_lock_df["Player"] + " — " + valid_lock_df["Line"] + " (" + valid_lock_df["Odds"].apply(lambda x: f"{x:+d}") + ")"
+            lock_options = valid_lock_df["PickLabel"].unique().tolist()
 
             locked_plays = st.multiselect(
                 "🔒 Lock In Play(s) (Optional)",
                 options=lock_options,
-                placeholder="Search & lock any player prop or alternate line...",
-                key="parlay_locked_multiselect"
+                placeholder=f"Search & lock any {active_league} player prop...",
+                key=f"parlay_locked_{active_league}"
             )
 
             if "parlay_swapped_norms" not in st.session_state:
@@ -2135,7 +2041,7 @@ with tab_parlays:
                 m2.metric("Parlay Size", f"{len(opt_df)} Legs", f"{len(locked_plays)} Locked")
                 m3.metric("Model Hit Prob", f"{comb_win_prob:.2f}%", f"Implied: {american_to_prob(final_odds)*100:.2f}%")
 
-                slip_lines = [f"{BRAND_NAME} ({len(opt_df)}-Leg Optimized Parlay | {final_odds:+d})"]
+                slip_lines = [f"{BRAND_NAME} {active_league} ({len(opt_df)}-Leg Parlay | {final_odds:+d})"]
                 for _, row in opt_df.iterrows():
                     is_locked = row["PickLabel"] in locked_plays
                     lock_tag = '<span class="inj-q-pill" style="background:rgba(16,185,129,0.18); color:#34D399; border-color:rgba(16,185,129,0.4);">🔒 LOCKED</span>' if is_locked else '<span class="pos-pill">✨ AI PICK</span>'
@@ -2144,7 +2050,7 @@ with tab_parlays:
 
                     p_badge = player_badge_html(
                         row["Player"], row["Headshot"], row["TeamLogo"], row.get("Pos", ""),
-                        book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
+                        league=active_league, book=st.session_state["selected_book"], inj_status=row.get("InjStatus", "")
                     )
                     
                     leg_col_1, leg_col_2 = st.columns([4.2, 1.2], vertical_alignment="center")
@@ -2159,11 +2065,11 @@ with tab_parlays:
                         )
                     with leg_col_2:
                         if not is_locked:
-                            if st.button("🔄 Swap", key=f"swap_leg_{row['NORM_NAME']}_{row['Stat']}_{row['RawLine']}", width="stretch"):
+                            if st.button("🔄 Swap", key=f"swap_{active_league}_{row['NORM_NAME']}_{row['Stat']}_{row['RawLine']}", width="stretch"):
                                 st.session_state["parlay_swapped_norms"].append(row["NORM_NAME"])
                                 st.rerun()
 
-                if st.button("Clear Swaps & Reset Rerolls"):
+                if st.button("Clear Swaps & Reset Rerolls", key=f"reset_swaps_{active_league}"):
                     st.session_state["parlay_swapped_norms"] = []
                     st.rerun()
 
@@ -2171,10 +2077,10 @@ with tab_parlays:
                     st.code("\n".join(slip_lines), language=None)
 
         with col_sgp:
-            st.markdown("##### ⚡ Correlated Same-Game Parlays")
-            st.caption("Pairs active pre-game lines with strong historical game-log correlations.")
-            sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()))
-            sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game], injury_map)
+            st.markdown(f"##### ⚡ Correlated {active_league} Same-Game Parlays")
+            st.caption("Pairs active pre-game lines with strong historical game-log correlations (e.g., QB Pass Yds + WR Rec Yds).")
+            sgp_game = st.selectbox("Select Matchup", list(slate_props.keys()), key=f"sgp_matchup_{active_league}")
+            sgp_df = build_auto_sgps(df, sgp_game, slate_props[sgp_game], injury_map, active_league)
             if sgp_df.empty:
                 st.warning("No high-correlation active prop pairs found for this matchup yet.")
             else:
@@ -2192,50 +2098,8 @@ with tab_parlays:
                     }
                 )
 
-# =========================================================
-# TAB 4: CUSTOM SGP LAB
-# =========================================================
-with tab_custom:
-    st.markdown("##### Custom Multi-Leg SGP Correlation Pricer")
-    st.caption("Calculate true joint probability and fair odds for any custom player prop combination.")
-    teams = sorted(df["TEAM_NAME"].dropna().unique())
-    c1, c2 = st.columns(2)
-    with c1:
-        team_a = st.selectbox("Team A", teams, index=teams.index("Denver Nuggets") if "Denver Nuggets" in teams else 0)
-    with c2:
-        team_b = st.selectbox("Team B (Opponent)", teams, index=teams.index("Phoenix Suns") if "Phoenix Suns" in teams else 1)
-
-    matchup_players = sorted(df[df["TEAM_NAME"].isin([team_a, team_b])]["PLAYER_NAME"].dropna().unique())
-    stats = ["PTS", "REB", "AST", "FG3M", "STL", "BLK", "TOV"]
-    num_legs = st.slider("Number of SGP Legs", min_value=2, max_value=5, value=3)
-    legs = []
-
-    cols = st.columns(num_legs)
-    for i in range(num_legs):
-        with cols[i]:
-            st.markdown(f"**Leg {i+1}**")
-            p = st.selectbox("Player", matchup_players, index=min(i, len(matchup_players)-1), key=f"p{i}")
-            side = st.radio("Side", ["Over", "Under"], horizontal=True, key=f"side{i}")
-            s = st.selectbox("Stat", stats, index=2 if i == 0 else 0, key=f"s{i}")
-            o = st.number_input("Selected Odds", value=-115, step=5, key=f"o{i}")
-            opp_o = st.number_input("Other Side Odds", value=-105, step=5, key=f"opp{i}")
-            legs.append({"player": p, "side": side, "stat": s, "odds": int(o), "opp_odds": int(opp_o)})
-
-    book_odds = st.number_input("Sportsbook Offered SGP Odds (e.g. +550)", value=550, step=10)
-    if st.button("Price Custom SGP", type="primary"):
-        res = price_sgp(df, legs, int(book_odds))
-        if "error" in res:
-            st.error(res["error"])
-        else:
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Shared Games", res["shared_games"])
-            m2.metric("Naive Odds", f"{res['naive_odds']:+d}")
-            m3.metric("TRUE Fair Odds", f"{res['fair_odds']:+d}")
-            m4.metric("Fair Probability", f"{res['fair_prob']*100:.1f}%")
-            st.dataframe(res["corr_df"], width="stretch")
-
 st.markdown(
-    f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA Analytics & Simulation Engine</span>'
+    f'<div class="site-footer"><span><b>{BRAND_NAME}</b> · Quantitative NBA & NFL Analytics Engine</span>'
     f'<span>For informational & entertainment purposes only. Please wager responsibly.</span></div>',
     unsafe_allow_html=True
 )
