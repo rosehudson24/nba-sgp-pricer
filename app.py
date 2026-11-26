@@ -610,7 +610,6 @@ def get_daily_pregame_vault() -> dict:
 
 @st.cache_data(ttl=21600)
 def fetch_live_espn_rosters(league: str) -> dict:
-    """Pulls live 2026-27 active rosters from ESPN so traded/signed players always map to their current team."""
     espn_path = SPORT_CONFIG[league]["espn_sport"]
     roster_map = {}
     try:
@@ -626,8 +625,7 @@ def fetch_live_espn_rosters(league: str) -> dict:
                         continue
                     r_url = f"https://site.api.espn.com/apis/site/v2/sports/{espn_path}/teams/{tid}/roster"
                     r_data = requests.get(r_url, timeout=6).json()
-                    athletes = r_data.get("athletes", [])
-                    for entry in athletes:
+                    for entry in r_data.get("athletes", []):
                         items = entry.get("items", [entry]) if isinstance(entry, dict) else []
                         for ath in items:
                             full_n = ath.get("displayName") or ath.get("fullName", "")
@@ -698,7 +696,7 @@ def load_sports_data(league: str):
         if not frames:
             return pd.DataFrame()
         df = pd.concat(frames, ignore_index=True)
-        df = df[df["minutes"] >= 10].copy()
+        df = df[df["minutes"] >= 8].copy()
         df["game_id"] = df["game_id"].astype(str)
         df["GAME_DATE"] = pd.to_datetime(df["game_date"], errors="coerce") if "game_date" in df.columns else pd.NaT
         df = df.sort_values(["SEASON", "GAME_DATE"]).drop_duplicates(subset=["game_id", "athlete_display_name"])
@@ -800,7 +798,6 @@ def load_sports_data(league: str):
         car = pd.to_numeric(df.get("carries", 0), errors="coerce").fillna(0.0)
         tgt = pd.to_numeric(df.get("targets", 0), errors="coerce").fillna(0.0)
         df["USAGE"] = np.where(df["RAW_POS"] == "QB", att + car, car + tgt)
-        df = df[df["USAGE"] >= 2].copy()
 
         df["HEADSHOT_HREF"] = df.get("headshot_url", pd.Series("", index=df.index)).fillna("")
         df["ATHLETE_ID"] = np.nan
@@ -863,7 +860,6 @@ def compute_advanced_team_metrics(df: pd.DataFrame, league: str) -> dict:
         return {"dvp_mult": {}, "dvp_ranks": {}, "dvp_avg": {}, "last_game": {}}
 
     curr_df = df[df["SEASON"] == active_season].copy()
-    # Use current season exclusively once 4+ weeks/games exist; otherwise blend 85% current / 15% prior
     if curr_df["GAME_ID"].nunique() >= 25:
         use_df = curr_df.copy()
         use_df["w"] = 1.0
@@ -1126,12 +1122,31 @@ def exp_weighted_std(values: np.ndarray, mean_val: float, decay: float = 0.90) -
     return float(np.sqrt(max(var, 0.45)))
 
 def get_current_season_slice(p_df: pd.DataFrame, league: str) -> pd.DataFrame:
-    """Returns current-season games if >=4 exist; otherwise supplements with minimal prior-year context."""
     active_season = SPORT_CONFIG[league]["active_season"]
     curr = p_df[p_df["SEASON"] == active_season].copy()
     if len(curr) >= 4:
         return curr
     return p_df.tail(8).copy()
+
+def is_meaningful_rotation_prop(row: pd.Series, league: str) -> bool:
+    """Filters out low-minute/low-usage bench depth and tiny prop lines from Top Straight Bets."""
+    avg_usg = float(row.get("AvgUsage", 0.0))
+    line_val = float(row.get("RawLine", 0.0))
+    stat = str(row.get("Stat", ""))
+    pos_g = str(row.get("PosGroup", ""))
+
+    if league == "NBA":
+        if avg_usg < 21.0:
+            return False
+        min_lines = {"PTS": 8.5, "REB": 4.5, "AST": 3.5, "FG3M": 1.5, "PRA": 14.5}
+        return line_val >= min_lines.get(stat, 4.5)
+    else:
+        if pos_g == "QB":
+            return avg_usg >= 18.0 and line_val >= 149.5
+        if avg_usg < 5.5:
+            return False
+        min_lines = {"RUSH_YDS": 24.5, "REC_YDS": 24.5, "REC": 2.5, "RUSH_REC_YDS": 39.5, "PASS_TD": 1.0}
+        return line_val >= min_lines.get(stat, 24.5)
 
 def skewed_prob_over(line: float, proj_mean: float, proj_std: float, emp_series: pd.Series) -> float:
     emp_recent = (emp_series.tail(5) > line).mean()
@@ -1157,18 +1172,17 @@ def compute_player_stat_projection(p_df: pd.DataFrame, stat: str, opp_pos_mults:
     curr_vals = curr_df[stat].dropna().values
     prior_vals = prior_df[stat].dropna().tail(10).values
 
-    if len(curr_vals) >= 5:
-        # 100% current season once 5+ games are logged (55% recent weighted form, 45% current-season avg)
+    if len(curr_vals) >= 6:
         recent_form = exp_weighted_mean(curr_vals[-6:], decay=0.88)
         season_avg = float(np.mean(curr_vals))
-        base_proj = 0.55 * recent_form + 0.45 * season_avg
+        base_proj = 0.50 * recent_form + 0.50 * season_avg
         std_vals = curr_vals
     elif len(curr_vals) >= 1:
-        # 85% current season / 15% prior season for players with 1-4 games back from injury
-        curr_avg = exp_weighted_mean(curr_vals, decay=0.90)
+        w_curr = len(curr_vals) / 6.0
+        curr_avg = float(np.mean(curr_vals))
         prior_avg = float(np.mean(prior_vals)) if len(prior_vals) > 0 else curr_avg
-        base_proj = 0.85 * curr_avg + 0.15 * prior_avg
-        std_vals = np.concatenate([prior_vals[-4:], curr_vals])
+        base_proj = w_curr * curr_avg + (1.0 - w_curr) * prior_avg
+        std_vals = np.concatenate([prior_vals[-6:], curr_vals])
     elif len(prior_vals) > 0:
         base_proj = exp_weighted_mean(prior_vals, decay=0.90)
         std_vals = prior_vals
@@ -1200,7 +1214,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
     grouped = {k: v for k, v in df.groupby("NORM_NAME")}
     dvp_mults_all = team_metrics["dvp_mult"]
     default_total = SPORT_CONFIG[league]["default_total"]
-    min_games_req = 4 if league == "NBA" else 2
+    min_games_req = 4 if league == "NBA" else 3
 
     team_usage_bump = {}
     for norm_inj, inj_info in injury_map.items():
@@ -1259,13 +1273,13 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
 
             curr_slice = get_current_season_slice(p_df, league)
             proj_usage = exp_weighted_mean(curr_slice["USAGE"].dropna().values, decay=0.90)
-            star_tier_weight = 1.0 + (min(proj_usage, 36.0) / 36.0) * 0.22 if league == "NBA" else 1.0 + (min(proj_usage, 35.0) / 35.0) * 0.20
+            star_tier_weight = 1.0 + (min(proj_usage, 36.0) / 36.0) * 0.25 if league == "NBA" else 1.0 + (min(proj_usage, 35.0) / 35.0) * 0.25
 
             for stat, info in p_data["stats"].items():
                 if stat not in p_df.columns or "Over" not in info or "Under" not in info:
                     continue
 
-                valid_emp = curr_slice[stat].dropna()
+                valid_emp = curr_slice[stat].dropna().tail(12)
                 if len(valid_emp) < min_games_req:
                     continue
 
@@ -1310,6 +1324,7 @@ def evaluate_straight_edges(df: pd.DataFrame, slate_props: dict, game_lines: dic
                             "TeamShort": team_short,
                             "Pos": raw_pos,
                             "PosGroup": pos_group,
+                            "AvgUsage": round(float(proj_usage), 1),
                             "InjStatus": inj_rec.get("status", ""),
                             "Headshot": headshot_url,
                             "TeamLogo": team_logo_url,
@@ -1368,23 +1383,43 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         if t_df.empty:
             return np.full(n_sims, default_total / 2.0), pd.DataFrame()
 
-        # Prioritize current season rotation
         active_pool = t_df[t_df["SEASON"] == active_season].copy()
         if active_pool["GAME_ID"].nunique() < 3:
             active_pool = t_df.copy()
         active_pool = active_pool[~active_pool["NORM_NAME"].isin(out_set)]
 
-        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(6 if league == "NFL" else 8)
+        recent_games = active_pool["GAME_ID"].drop_duplicates().tail(5 if league == "NFL" else 8)
         recent_df = active_pool[active_pool["GAME_ID"].isin(recent_games)]
 
-        rot_players = (
-            recent_df.groupby("PLAYER_NAME")["USAGE"]
-            .agg(["count", "mean"])
-            .query("count >= 1")
-            .sort_values(by="mean", ascending=False)
-            .head(8 if league == "NFL" else 9)
-            .index.tolist()
-        )
+        if league == "NFL":
+            qb_pool = recent_df[recent_df["POS_GROUP"] == "QB"]
+            top_qb = (
+                qb_pool.groupby("PLAYER_NAME")["USAGE"]
+                .mean()
+                .sort_values(ascending=False)
+                .head(1)
+                .index.tolist()
+            )
+            skill_pool = recent_df[recent_df["POS_GROUP"].isin(["RB", "WR", "TE"])]
+            top_skill = (
+                skill_pool.groupby("PLAYER_NAME")["USAGE"]
+                .agg(["count", "mean"])
+                .query("count >= 1")
+                .sort_values(by="mean", ascending=False)
+                .head(7)
+                .index.tolist()
+            )
+            rot_players = top_qb + top_skill
+        else:
+            rot_players = (
+                recent_df.groupby("PLAYER_NAME")["USAGE"]
+                .agg(["count", "mean"])
+                .query("count >= 1")
+                .sort_values(by="mean", ascending=False)
+                .head(9)
+                .index.tolist()
+            )
+
         if not rot_players:
             rot_players = recent_df["PLAYER_NAME"].unique().tolist()[:8]
 
@@ -1394,9 +1429,8 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         player_params = []
         for p in rot_players:
             p_sub = sub[sub["PLAYER_NAME"] == p].copy()
-            min_floor = 18.0 if league == "NBA" else 8.0
-            if p_sub["USAGE"].median() >= (24.0 if league == "NBA" else 10.0):
-                filtered_sub = p_sub[p_sub["USAGE"] >= min_floor]
+            if league == "NBA" and p_sub["USAGE"].median() >= 24.0:
+                filtered_sub = p_sub[p_sub["USAGE"] >= 18.0]
                 p_sub = filtered_sub if len(filtered_sub) >= 3 else p_sub
 
             norm_p = normalize_name(p)
@@ -2119,7 +2153,7 @@ tab_straight, tab_slate, tab_parlays = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: TOP STRAIGHT BETS (NBA & NFL)
+# TAB 1: TOP STRAIGHT BETS (ROTATION & LINE-FLOOR FILTERED)
 # =========================================================
 with tab_straight:
     if not slate_props:
@@ -2128,6 +2162,10 @@ with tab_straight:
         st.warning(f"No {active_league} pre-game props available for evaluation yet.")
     else:
         bk = st.session_state["selected_book"]
+        rotation_main_df = main_edges_df[main_edges_df.apply(lambda r: is_meaningful_rotation_prop(r, active_league), axis=1)].copy()
+        if rotation_main_df.empty:
+            rotation_main_df = main_edges_df.copy()
+
         sub_proj, sub_overs, sub_unders = st.tabs([
             "🔥 Top Projections (High Ceiling)",
             "📈 Top Overs",
@@ -2181,14 +2219,14 @@ with tab_straight:
                     render_top_projections_board(sp_df, stat_keys[3], f"Top Projected {labels_map[stat_keys[3]]}", active_league)
 
         with sub_overs:
-            st.caption("Highest confidence standard Over bets backed by favorable matchup environments.")
-            overs_df = main_edges_df[main_edges_df["Side"] == "Over"].sort_values(by="BlendedScore", ascending=False)
-            render_clean_prop_board(overs_df.head(15), f"Top {active_league} Over Plays — Standard Lines", "No qualifying Over plays found.", league=active_league, book=bk)
+            st.caption("High-volume rotation & starter Over plays filtered to remove low-minute bench depth and micro-lines.")
+            overs_df = rotation_main_df[rotation_main_df["Side"] == "Over"].sort_values(by="BlendedScore", ascending=False)
+            render_clean_prop_board(overs_df.head(15), f"Top {active_league} Over Plays — Rotation & Star Lines", "No qualifying rotation Over plays found.", league=active_league, book=bk)
 
         with sub_unders:
-            st.caption("Highest confidence standard Under bets backed by tough defensive matchups and suppression.")
-            unders_df = main_edges_df[main_edges_df["Side"] == "Under"].sort_values(by="BlendedScore", ascending=False)
-            render_clean_prop_board(unders_df.head(15), f"Top {active_league} Under Plays — Standard Lines", "No qualifying Under plays found.", league=active_league, book=bk)
+            st.caption("High-volume rotation & starter Under plays backed by tough defensive matchups.")
+            unders_df = rotation_main_df[rotation_main_df["Side"] == "Under"].sort_values(by="BlendedScore", ascending=False)
+            render_clean_prop_board(unders_df.head(15), f"Top {active_league} Under Plays — Rotation & Star Lines", "No qualifying rotation Under plays found.", league=active_league, book=bk)
 
 # =========================================================
 # TAB 2: SLATE & MATCHUP PROJECTIONS
