@@ -792,7 +792,8 @@ def load_sports_data(league: str):
         df["RUSH_TD"] = pd.to_numeric(df.get("rushing_tds", 0), errors="coerce").fillna(0.0)
         df["REC_TD"] = pd.to_numeric(df.get("receiving_tds", 0), errors="coerce").fillna(0.0)
         df["RUSH_REC_YDS"] = df["RUSH_YDS"] + df["REC_YDS"]
-        df["TOTAL_PTS"] = (df["RUSH_TD"] + df["REC_TD"]) * 6.0 + df["PASS_TD"] * 4.0
+        # Every offensive TD (rushing, receiving, or passing) puts 6 points on the scoreboard for the team
+        df["TOTAL_PTS"] = (df["RUSH_TD"] + df["REC_TD"] + df["PASS_TD"]) * 6.0
 
         att = pd.to_numeric(df.get("attempts", 0), errors="coerce").fillna(0.0)
         car = pd.to_numeric(df.get("carries", 0), errors="coerce").fillna(0.0)
@@ -1002,9 +1003,10 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
             tip_str = tip_et.strftime("%a %I:%M %p ET").lstrip("0") if league == "NFL" else tip_et.strftime("%I:%M %p ET").lstrip("0")
             event_id = ev.get("id")
 
+            existing = day_bucket["games"].get(lbl, {})
             day_bucket["games"][lbl] = {
-                "spread_home": 0.0,
-                "total": default_total,
+                "spread_home": existing.get("spread_home", 0.0),
+                "total": existing.get("total", default_total),
                 "id": event_id,
                 "tip_str": tip_str,
                 "tip_utc": tip_utc.isoformat(),
@@ -1023,18 +1025,18 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
 
             odds_data = pl_client.get_odds(sport_key, event_id=event_id, markets=market_list)
 
-            spread_home = 0.0
-            total_line = default_total
+            spread_home = None
+            total_line = None
             candidates = {}
 
             for book in odds_data.get("bookmakers", []):
                 for market in book.get("markets", []):
                     m_key = market.get("key")
-                    if m_key == "spreads":
+                    if m_key == "spreads" and spread_home is None:
                         for o in market.get("outcomes", []):
                             if resolve_team_name(o.get("name", ""), league) == home and o.get("point") is not None:
                                 spread_home = float(o["point"])
-                    elif m_key == "totals":
+                    elif m_key == "totals" and total_line is None:
                         for o in market.get("outcomes", []):
                             if o.get("name") == "Over" and o.get("point") is not None:
                                 total_line = float(o["point"])
@@ -1055,8 +1057,10 @@ def fetch_and_lock_propline_slate(league: str, bookmaker: str = "draftkings", ma
                             line_obj = st_obj.setdefault(float(line), {})
                             line_obj[side] = int(price)
 
-            day_bucket["games"][lbl]["spread_home"] = spread_home
-            day_bucket["games"][lbl]["total"] = total_line
+            if spread_home is not None:
+                day_bucket["games"][lbl]["spread_home"] = spread_home
+            if total_line is not None:
+                day_bucket["games"][lbl]["total"] = total_line
 
             props = {}
             for norm_p, p_obj in candidates.items():
@@ -1189,7 +1193,7 @@ def compute_player_stat_projection(p_df: pd.DataFrame, stat: str, opp_pos_mults:
     else:
         return 0.0, 1.0
 
-    total_factor = 1.0 + 0.22 * ((vegas_total - default_total) / max(default_total, 1.0))
+    total_factor = 1.0 + 0.25 * ((vegas_total - default_total) / max(default_total, 1.0))
     raw_dvp = float(opp_pos_mults.get(stat, 1.0))
     dvp_factor = 1.0 + 0.40 * (raw_dvp - 1.0)
     loc_factor = 1.012 if is_home else 0.988
@@ -1502,8 +1506,9 @@ def simulate_full_game(df: pd.DataFrame, away_team: str, home_team: str, team_me
         vegas_implied = (vegas_total / 2.0) - (vegas_spread_home / 2.0) if is_home else (vegas_total / 2.0) + (vegas_spread_home / 2.0)
         hist_team_pts = team_game_pts.get(team, lg_avg_pts)
         if league == "NFL":
-            hist_team_pts = max(16.0, min(32.0, hist_team_pts + 6.0))
-        expected_team_pts = 0.35 * hist_team_pts + 0.65 * vegas_implied
+            # Add average PATs + Field Goals (~9.5 pts/gm) to offensive TD points
+            hist_team_pts = max(17.0, min(36.0, hist_team_pts + 9.5))
+        expected_team_pts = 0.15 * hist_team_pts + 0.85 * vegas_implied
 
         box_df = pd.DataFrame(box_rows)
         if league == "NBA" and not box_df.empty and box_df["S1"].sum() > 0:
@@ -2125,6 +2130,7 @@ with ctrl_c2:
     search_player = st.text_input("Search", placeholder=f"Filter {active_league} players or teams...")
 with ctrl_c3:
     if st.button("Refresh", icon=":material/refresh:", width="stretch"):
+        get_daily_pregame_vault.clear()
         fetch_and_lock_propline_slate.clear()
         fetch_injury_report.clear()
         fetch_live_espn_rosters.clear()
